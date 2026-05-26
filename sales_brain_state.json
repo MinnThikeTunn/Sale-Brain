@@ -1,0 +1,205 @@
+{
+  "config": {
+    "shopName": "Shwe Pathein Sweet Treats & Artisanal Crafts",
+    "ownerName": "Yoon Yamone Oo",
+    "phone": "09971234567",
+    "currency": "MMK",
+    "telegramBotToken": "8856028700:AAF3vPQFbfjyi2efY2fHK3EpDeST6mGnwAE",
+    "telegramBotUsername": "ShwePathein_Sale_bot",
+    "onboardingCompleted": true
+  },
+  "products": [
+    {
+      "id": "prod-1",
+      "name": "Pathein Halawa (Premium Butter & Poppy Seed)",
+      "category": "Desserts",
+      "price": 4500,
+      "description": "Legendary traditional Myanmar sweet treat. Made with pure butter, sticky rice, and roasted poppy seeds.",
+      "stock": 45,
+      "image": "https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&q=80&w=400"
+    },
+    {
+      "id": "prod-2",
+      "name": "Royal Myanmar Instant Tea Mix (30 Sachets)",
+      "category": "Beverages",
+      "price": 7500,
+      "description": "Rich, creamy, and uniquely sweet authentic Myanmar traditional milk tea. Brews instantly.",
+      "stock": 30,
+      "image": "https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&q=80&w=400"
+    },
+    {
+      "id": "prod-3",
+      "name": "Handcrafted Pathein Bamboo Parasol (Medium / Ruby Red)",
+      "category": "Lifestyle",
+      "price": 24000,
+      "description": "Vibrant traditional paper-and-bamboo sun umbrella hand-painted by local artisans in Pathein.",
+      "stock": 3,
+      "image": "https://images.unsplash.com/photo-1590073844006-33379778ae09?auto=format&fit=crop&q=80&w=400"
+    },
+    {
+      "id": "prod-4",
+      "name": "Kyaukpadaung Premium Jaggery Box (Coconut Shreds)",
+      "category": "Snacks",
+      "price": 9000,
+      "description": "Pure sugar palm nectar drops stuffed with sweet coconut shreds. Perfect with hot green tea.",
+      "stock": 25,
+      "image": "https://images.unsplash.com/photo-1608686207856-001b95cf60ca?auto=format&fit=crop&q=80&w=400"
+    },
+    {
+      "id": "prod-5",
+      "name": "Shan Hills Wildflower Honey (500ml Bottled)",
+      "category": "Beverages",
+      "price": 12000,
+      "description": "100% natural organic blossom honey wild-harvested from the dense forests of Southern Shan State.",
+      "stock": 12,
+      "image": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&q=80&w=400"
+    }
+  ],
+  "deliveryZones": [
+    {
+      "township": "Kamayut",
+      "rate": 3000,
+      "deliveryTime": "1-2 Days"
+    },
+    {
+      "township": "Sanchaung",
+      "rate": 2500,
+      "deliveryTime": "1-2 Days"
+    },
+    {
+      "township": "Latha (Downtown)",
+      "rate": 2000,
+      "deliveryTime": "1 Day"
+    },
+    {
+      "township": "Yankin",
+      "rate": 3000,
+      "deliveryTime": "1-2 Days"
+    },
+    {
+      "township": "Bahan",
+      "rate": 2500,
+      "deliveryTime": "1-2 Days"
+    },
+    {
+      "township": "Mayangone",
+      "rate": 3500,
+      "deliveryTime": "2 Days"
+    },
+    {
+      "township": "Hlaing",
+      "rate": 3000,
+      "deliveryTime": "1-2 Days"
+    }
+  ],
+  "orders": [
+    {
+      "id": "ord-1001",
+      "invoiceId": "INV-2026-0001",
+      "customerName": "Ma Su Sandar",
+      "customerPhone": "09798765432",
+      "customerTelegramId": "tg_susandar92",
+      "township": "Kamayut",
+      "addressDetails": "Room 4B, Building 12, Pyay Road",
+      "deliveryFee": 3000,
+      "paymentMethod": "prepay",
+      "totalAmount": 12000,
+      "status": "confirmed",
+      "items": [
+        {
+          "productId": "prod-1",
+          "productName": "Pathein Halawa (Premium Butter & Poppy Seed)",
+          "price": 4500,
+          "quantity": 2
+        }
+      ],
+      "paymentDetails": {
+        "method": "KPay",
+        "transactionId": "847290148203",
+        "screenshotUrl": "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&q=80&w=200"
+      },
+      "createdAt": "2026-05-25T14:20:00Z"
+    },
+    {
+      "id": "ord-1002",
+      "invoiceId": "INV-2026-0002",
+      "customerName": "Ko Aung Kyaw",
+      "customerPhone": "09254631256",
+      "customerTelegramId": "tg_aungkyaw_yangon",
+      "township": "Sanchaung",
+      "addressDetails": "No. 45, Ground Floor, Shan Kone Street",
+      "deliveryFee": 2500,
+      "paymentMethod": "prepay",
+      "totalAmount": 26500,
+      "status": "verifying",
+      "items": [
+        {
+          "productId": "prod-3",
+          "productName": "Handcrafted Pathein Bamboo Parasol (Medium / Ruby Red)",
+          "price": 24000,
+          "quantity": 1
+        }
+      ],
+      "paymentDetails": {
+        "method": "WavePay",
+        "transactionId": "4820195724",
+        "screenshotUrl": "https://images.unsplash.com/photo-1616077168079-7e09a677fb2c?auto=format&fit=crop&q=80&w=200"
+      },
+      "createdAt": "2026-05-26T01:10:00Z"
+    },
+    {
+      "id": "ord-1003",
+      "invoiceId": "INV-2026-0003",
+      "customerName": "Daw Thidar Win",
+      "customerPhone": "09443209876",
+      "customerTelegramId": "tg_thidarwin_bahan",
+      "township": "Bahan",
+      "addressDetails": "Sayar San Road, Golden Valley Area",
+      "deliveryFee": 2500,
+      "paymentMethod": "cod",
+      "totalAmount": 29500,
+      "status": "completed",
+      "items": [
+        {
+          "productId": "prod-5",
+          "productName": "Shan Hills Wildflower Honey (500ml Bottled)",
+          "price": 12000,
+          "quantity": 1
+        },
+        {
+          "productId": "prod-2",
+          "productName": "Royal Myanmar Instant Tea Mix (30 Sachets)",
+          "price": 7500,
+          "quantity": 2
+        }
+      ],
+      "createdAt": "2026-05-24T09:45:00Z"
+    }
+  ],
+  "sessions": {
+    "default_customer": {
+      "sessionId": "default_customer",
+      "customerName": "Ma Khin Thidar",
+      "customerPhone": "09964820172",
+      "customerTelegramId": "khinthidar_sweet",
+      "messages": [
+        {
+          "id": "m1",
+          "sender": "customer",
+          "content": "Mingalabar Candy! 😊 I am interested in ordering some of your famous items.",
+          "timestamp": "2026-05-26T02:00:00Z"
+        },
+        {
+          "id": "m2",
+          "sender": "bot",
+          "content": "Mingalabar shin! 🙏 Welcome to Shwe Pathein Treats! Candy is so happy to assist you today. Here is our best product list. Which ones can Candy pack for you? 💕\n\n1️⃣ Pathein Halawa (Premium) - 4,500 MMK\n2️⃣ Royal Myanmar Instant Tea Mix - 7,500 MMK\n3️⃣ Handcrafted Pathein Bamboo Parasol - 24,000 MMK\n\nYou can say \"Add 2 Halawa\" or ask me any details!",
+          "timestamp": "2026-05-26T02:01:00Z"
+        }
+      ],
+      "lastActive": "2026-05-26T02:01:00Z",
+      "currentStep": "browsing",
+      "cart": [],
+      "liveTakeoverActive": false
+    }
+  }
+}

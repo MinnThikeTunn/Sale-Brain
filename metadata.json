@@ -1,0 +1,6 @@
+{
+  "name": "Sales Brain AI",
+  "description": "AI-powered Telegram sales assistant and business intelligence dashboard for SMEs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
