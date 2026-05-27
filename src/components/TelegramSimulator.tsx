@@ -25,6 +25,7 @@ export function TelegramSimulator({
   const [txIdInput, setTxIdInput] = useState("");
   const [selectedPayMethod, setSelectedPayMethod] = useState<'KPay' | 'WavePay' | 'CBPay' | 'AYA Pay'>('KPay');
   const [mockScreenshotBase64, setMockScreenshotBase64] = useState<string | null>(null);
+  const [customAttachBase64, setCustomAttachBase64] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -51,7 +52,8 @@ export function TelegramSimulator({
 
   const handleSendMessage = async (customText?: string) => {
     const textToSend = customText || inputText;
-    if (!textToSend.trim() && !mockScreenshotBase64) return;
+    const finalImage = customAttachBase64 || mockScreenshotBase64;
+    if (!textToSend.trim() && !finalImage) return;
 
     setLoading(true);
     try {
@@ -61,7 +63,7 @@ export function TelegramSimulator({
         body: JSON.stringify({
           sessionId: session.sessionId,
           content: textToSend,
-          base64Image: mockScreenshotBase64 || undefined,
+          base64Image: finalImage || undefined,
           transactionId: txIdInput || undefined,
           payMethod: selectedPayMethod
         })
@@ -71,6 +73,7 @@ export function TelegramSimulator({
         setInputText("");
         setTxIdInput("");
         setMockScreenshotBase64(null);
+        setCustomAttachBase64(null);
         onStateUpdated();
       }
     } catch (err) {
@@ -419,22 +422,50 @@ export function TelegramSimulator({
             </div>
 
             {/* Simulated Screenshot selectors */}
-            <div className="space-y-1">
-              <span className="text-[9px] text-slate-500 block">Select a Mock Receipt screenshot to test:</span>
-              <div className="grid grid-cols-2 gap-1">
-                {mockReceipts.map((rec) => (
-                  <button
-                    key={rec.name}
-                    onClick={() => setMockScreenshotBase64(rec.url)}
-                    className={`p-1 border text-[9px] rounded font-mono truncate text-center transition-all cursor-pointer ${
-                      mockScreenshotBase64 === rec.url
-                        ? "border-indigo-500 bg-indigo-950/40 text-indigo-300"
-                        : "border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-300"
-                    }`}
-                  >
-                    {rec.name}
-                  </button>
-                ))}
+            <div className="space-y-1.5">
+              <span className="text-[9px] text-slate-400 block font-semibold">Prepayment Receipt Action:</span>
+              
+              {/* Computer file upload trigger */}
+              <label className="flex items-center justify-center gap-1.5 border border-dashed border-slate-700 hover:border-indigo-500 bg-slate-900 hover:bg-slate-850 p-1.5 rounded-lg cursor-pointer transition-all relative">
+                <Image size={11} className={mockScreenshotBase64 && !mockScreenshotBase64.startsWith("http") ? "text-emerald-400" : "text-slate-400"} />
+                <span className="text-[9px] font-medium text-slate-300">
+                  {mockScreenshotBase64 && !mockScreenshotBase64.startsWith("http") ? "Custom Receipt Uploaded ✓" : "Upload Receipt File"}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        setMockScreenshotBase64(reader.result as string);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+              </label>
+
+              <div className="flex items-center gap-1.5 pt-0.5">
+                <span className="text-[8px] text-slate-500 font-mono tracking-wider uppercase shrink-0">Presets:</span>
+                <div className="grid grid-cols-2 gap-1 flex-1">
+                  {mockReceipts.map((rec) => (
+                    <button
+                      key={rec.name}
+                      type="button"
+                      onClick={() => setMockScreenshotBase64(rec.url)}
+                      className={`p-1 border text-[8px] rounded font-mono truncate text-center transition-all cursor-pointer ${
+                        mockScreenshotBase64 === rec.url
+                          ? "border-indigo-500 bg-indigo-950/40 text-indigo-300"
+                          : "border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-300"
+                      }`}
+                    >
+                      {rec.name.split(" ")[0]}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -466,8 +497,49 @@ export function TelegramSimulator({
         )}
       </div>
 
+      {/* ATTACHMENT PREVIEW FLOATING ACCORDION */}
+      {customAttachBase64 && (
+        <div className="px-3 py-2 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <img 
+              src={customAttachBase64} 
+              alt="Custom attachment upload" 
+              className="w-8 h-8 object-cover rounded border border-slate-750 shadow"
+            />
+            <span className="text-[10px] text-slate-400 font-mono truncate">File loaded from computer</span>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setCustomAttachBase64(null)}
+            className="text-[10px] text-rose-400 hover:text-rose-300 font-bold px-1.5 py-0.5 cursor-pointer"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {/* FOOTER DIALOG ENTRY BAR */}
       <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center gap-2 pb-6">
+        {/* Custom general computer image upload trigger */}
+        <label className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center cursor-pointer text-slate-400 hover:text-white transition-all shrink-0 select-none">
+          <Image size={13} className={customAttachBase64 ? "text-indigo-400" : ""} />
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setCustomAttachBase64(reader.result as string);
+                };
+                reader.readAsDataURL(file);
+              }
+            }}
+          />
+        </label>
+
         <input
           type="text"
           placeholder={session.liveTakeoverActive ? "Direct message as Customer..." : "Type custom inquiries in Burmese/English..."}
@@ -476,11 +548,11 @@ export function TelegramSimulator({
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSendMessage();
           }}
-          className="flex-1 bg-slate-950 border border-slate-800 text-white rounded-full px-3.5 py-1.5 text-xs focus:outline-none focus:border-indigo-500 transition-all font-sans"
+          className="flex-1 bg-slate-950 border border-slate-800 text-white rounded-full px-3.5 py-1.5 text-xs focus:outline-none focus:border-indigo-500 transition-all font-sans animate-in fade-in"
         />
         <button
           onClick={() => handleSendMessage()}
-          disabled={!inputText.trim()}
+          disabled={!inputText.trim() && !customAttachBase64}
           className="w-8 h-8 rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white flex items-center justify-center transition-all cursor-pointer"
         >
           <Send size={12} />

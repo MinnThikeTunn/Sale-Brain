@@ -6,6 +6,7 @@ import {
   Trash,
   ShoppingBag,
   Check,
+  Image,
   X,
   MessageSquare,
   Settings,
@@ -29,6 +30,7 @@ import {
 
 import { CustomChart } from "./components/CustomChart";
 import { TelegramSimulator } from "./components/TelegramSimulator";
+import { SmartMarketing } from "./components/SmartMarketing";
 import { Product, DeliveryZone, Order, ShopConfig, TelegramSession, SystemState } from "./types";
 
 // Complete localized dictionary for total English & Burmese translation sync
@@ -91,7 +93,7 @@ const dict = {
     categoryLabel: "Category:",
     unitPriceLabel: "Unit Price (MMK):",
     availableStockLabel: "Available stock quantity:",
-    imageUrlLabel: "Image URL Link:",
+    imageUrlLabel: "Product Image File:",
     shortDescriptionLabel: "Short Description details:",
     confirmProductRevisions: "Confirm product revisions",
     addItemCatalog: "Add item catalog",
@@ -147,6 +149,7 @@ const dict = {
     tabProducts: "Product Catalog",
     tabDelivery: "Delivery Matrix",
     tabInsights: "AI Strategy",
+    tabSmartMarketing: "Smart Marketing",
     tabConfig: "Bot Connection",
     tabLiveSupport: "Live VIP Support",
     categories: {
@@ -214,7 +217,7 @@ const dict = {
     categoryLabel: "အမျိုးအစား သတ်မှတ်ချက် -",
     unitPriceLabel: "သတ်မှတ်စျေးနှုန်း (ကျပ်) -",
     availableStockLabel: "လက်ကျန် အရေအတွက် -",
-    imageUrlLabel: "ပစ္စည်း ဓာတ်ပုံလင့်ခ် (URL) -",
+    imageUrlLabel: "ကုန်ပစ္စည်း ဓာတ်ပုံဖိုင်တင်ရန် -",
     shortDescriptionLabel: "ပစ္စည်း အကျဉ်းချုပ် ဖော်ပြချက် -",
     confirmProductRevisions: "ပြင်ဆင်မှုများအား သိမ်းဆည်းရန်",
     addItemCatalog: "ကုန်ပစ္စည်းစာရင်းထဲ ထည့်မည်",
@@ -270,6 +273,7 @@ const dict = {
     tabProducts: "ကုန်ပစ္စည်းများ",
     tabDelivery: "ပို့ဆောင်ခနှုန်းထား",
     tabInsights: "မဟာဗျူဟာ (AI)",
+    tabSmartMarketing: "မားကက်တင်း (AI)",
     tabConfig: "ဘော့တ်ချိတ်ဆက်မှု",
     tabLiveSupport: "VIP တိုက်ရိုက်ပြောခန်း",
     categories: {
@@ -292,7 +296,7 @@ export default function App() {
 
   // Main Store State
   const [storeState, setStoreState] = useState<SystemState | null>(null);
-  const [activeTab, setActiveTab] = useState<"orders" | "products" | "delivery" | "insights" | "bot_config" | "live_support">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "products" | "delivery" | "insights" | "bot_config" | "live_support" | "smart_marketing">("orders");
   const [activeSessionId, setActiveSessionId] = useState<string>("default_customer");
 
   // Loaders
@@ -950,6 +954,16 @@ export default function App() {
             >
               🧑‍💼 {t("tabLiveSupport")}
             </button>
+            <button
+              onClick={() => setActiveTab("smart_marketing")}
+              className={`px-4 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === "smart_marketing" 
+                  ? "border-black text-black" 
+                  : "border-transparent text-slate-500 hover:text-black"
+              }`}
+            >
+              🚀 {t("tabSmartMarketing")}
+            </button>
 
             {/* Float Reset Button */}
             <button
@@ -1305,13 +1319,48 @@ export default function App() {
 
                         <div className="space-y-1">
                           <label className="text-[9px] font-semibold text-slate-400 block uppercase">{t("imageUrlLabel")}</label>
-                          <input
-                            type="text"
-                            value={prodForm.image}
-                            onChange={(e) => setProdForm({ ...prodForm, image: e.target.value })}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 font-mono text-[9px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            placeholder="Unsplash image URL"
-                          />
+                          {prodForm.image ? (
+                            <div className="relative border border-slate-200 rounded-xl overflow-hidden bg-slate-50 p-2 flex items-center justify-between gap-2 shadow-inner h-[38px]">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <img
+                                  src={prodForm.image}
+                                  alt="Product Preview"
+                                  className="w-6 h-6 rounded object-cover border border-slate-250 shadow-sm"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <span className="text-[9px] text-emerald-600 font-bold truncate">Uploaded</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setProdForm({ ...prodForm, image: "" })}
+                                className="text-rose-600 hover:text-rose-700 font-extrabold px-1.5 py-0.5 rounded text-[8px] uppercase hover:bg-rose-50"
+                              >
+                                {lang === "my" ? "ဖျက်မည်" : "Remove"}
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="flex items-center justify-center border border-dashed border-slate-300 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50/20 rounded-xl px-3 py-2 cursor-pointer transition-all duration-150 relative h-[38px] text-center">
+                              <span className="text-[9px] font-bold text-indigo-600 flex items-center gap-1">
+                                <Image size={10} className="shrink-0" />
+                                {lang === "my" ? "ဓာတ်ပုံတင်ပါ" : "Upload File"}
+                              </span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="absolute inset-0 opacity-0 cursor-pointer"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onload = () => {
+                                      setProdForm({ ...prodForm, image: reader.result as string });
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </label>
+                          )}
                         </div>
                       </div>
 
@@ -1758,6 +1807,10 @@ export default function App() {
 
               </div>
             </section>
+          )}
+
+          {activeTab === "smart_marketing" && storeState && (
+            <SmartMarketing state={storeState} />
           )}
 
         </main>
