@@ -291,6 +291,7 @@ const dict = {
 export default function App() {
   const [lang, setLang] = useState<"en" | "my">("en");
   const [showSimulator, setShowSimulator] = useState<boolean>(false);
+  const [botConnectionTab, setBotConnectionTab] = useState<"telegram" | "messenger">("telegram");
 
   // Helper dictionary access
   const t = (key: keyof typeof dict['en']) => {
@@ -301,6 +302,9 @@ export default function App() {
   const [storeState, setStoreState] = useState<SystemState | null>(null);
   const [activeTab, setActiveTab] = useState<"orders" | "products" | "delivery" | "insights" | "bot_config" | "live_support" | "smart_marketing">("orders");
   const [activeSessionId, setActiveSessionId] = useState<string>("default_customer");
+  const [configDraft, setConfigDraft] = useState<ShopConfig | null>(null);
+  const [messengerStatus, setMessengerStatus] = useState<{ connected: boolean; pages: any[] } | null>(null);
+  const [loadingMessengerStatus, setLoadingMessengerStatus] = useState<boolean>(false);
 
   // Loaders
   const [loading, setLoading] = useState<boolean>(true);
@@ -346,6 +350,11 @@ export default function App() {
         }
         const data: SystemState = await response.json();
         setStoreState(data);
+        // If user is not currently editing bot config, keep draft synced.
+        setConfigDraft((prev) => {
+          if (activeTab === "bot_config" && prev) return prev;
+          return data.config;
+        });
         if (data.sessions && Object.keys(data.sessions).length > 0) {
           const keys = Object.keys(data.sessions);
           if (!keys.includes(activeSessionId)) {
@@ -360,6 +369,23 @@ export default function App() {
     }
   };
 
+  const fetchMessengerStatus = async () => {
+    setLoadingMessengerStatus(true);
+    try {
+      const res = await fetch("/api/messenger/status");
+      if (res.ok) {
+        const data = await res.json();
+        setMessengerStatus(data);
+      } else {
+        setMessengerStatus(null);
+      }
+    } catch {
+      setMessengerStatus(null);
+    } finally {
+      setLoadingMessengerStatus(false);
+    }
+  };
+
   // Run initial state loading and setup periodic fast poll to grab customer simulator inputs immediately!
   useEffect(() => {
     fetchState();
@@ -371,6 +397,17 @@ export default function App() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Ensure the bot-config form keeps a stable draft while typing
+  useEffect(() => {
+    if (!storeState) return;
+    if (activeTab === "bot_config") {
+      setConfigDraft((prev) => prev ?? storeState.config);
+      if (botConnectionTab === "messenger") {
+        fetchMessengerStatus();
+      }
+    }
+  }, [activeTab, storeState, botConnectionTab]);
 
   // Fetch AI strategy when the selected language changes
   useEffect(() => {
@@ -416,9 +453,18 @@ export default function App() {
       const response = await fetch("/api/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(storeState.config)
+        body: JSON.stringify(configDraft || storeState.config)
       });
       if (response.ok) {
+        try {
+          const data = await response.json();
+          if (data?.config) {
+            setStoreState((prev) => prev ? ({ ...prev, config: data.config }) : prev);
+            setConfigDraft(data.config);
+          }
+        } catch {
+          // ignore JSON parse issues
+        }
         showToast(
           lang === "my" 
             ? "ဆိုင်အချက်အလက် စနစ် သိမ်းဆည်းပြီး တယ်လီဂရမ်နှင့် ချိတ်ဆက်ပြီးပါပြီ။ 🟢" 
@@ -1622,120 +1668,211 @@ export default function App() {
           {activeTab === "bot_config" && (
             <div className="space-y-4">
               <div className="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm text-slate-700">
-                <h3 className="text-xs font-extrabold font-mono text-slate-900 flex items-center gap-2 mb-1 uppercase">
-                  {t("telegramBotActivationWorkspace")}
-                </h3>
-                <p className="text-[10px] text-slate-400">{t("oneClickOnboardingDesc")}</p>
-
-                {storeState.config.telegramBotUsername && (
-                  <div className="mt-4 p-3 bg-sky-50 border border-sky-100 rounded-xl flex items-center justify-between gap-3 text-slate-700">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-[#229ED9]/10 text-[#229ED9] flex items-center justify-center font-bold text-sm shrink-0">
-                        Bot
-                      </div>
-                      <div>
-                        <h4 className="text-[11px] font-bold text-slate-900">
-                          {lang === "my" ? "တယ်လီဂရမ် Bot သို့ တိုက်ရိုက်သွားရန်" : "Direct Link to Active Telegram Bot"}
-                        </h4>
-                        <p className="text-[9px] text-slate-400 font-mono">
-                          @{storeState.config.telegramBotUsername.replace("@", "")}
-                        </p>
-                      </div>
-                    </div>
-                    <a
-                      href={`https://t.me/${storeState.config.telegramBotUsername.replace("@", "")}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 rounded-lg text-[10px] font-bold bg-[#229ED9] hover:bg-[#34aadf] text-white flex items-center gap-1 cursor-pointer transition-all shadow-sm shrink-0 flex items-center gap-1"
-                    >
-                      <Send size={11} className="rotate-45" />
-                      <span>{t("liveBot")}</span>
-                      <ExternalLink size={10} />
-                    </a>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h3 className="text-xs font-extrabold font-mono text-slate-900 flex items-center gap-2 mb-1 uppercase">
+                      {t("tabConfig")}
+                    </h3>
+                    <p className="text-[10px] text-slate-400">
+                      {lang === "my"
+                        ? "ချန်နယ် (Telegram / Messenger) မျိုးစုံနဲ့ ဘော့တ်ချိတ်ဆက်မှုများကို ဒီနေရာမှာ စီစဉ်နိုင်ပါသည်။"
+                        : "Manage Telegram + Facebook Messenger bot connections from this workspace."}
+                    </p>
                   </div>
+
+                  {/* Channel switcher */}
+                  <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 w-fit">
+                    <button
+                      type="button"
+                      onClick={() => setBotConnectionTab("telegram")}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                        botConnectionTab === "telegram"
+                          ? "bg-[#229ED9] text-white shadow-sm"
+                          : "text-slate-600 hover:text-slate-800"
+                      }`}
+                    >
+                      Telegram
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBotConnectionTab("messenger")}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                        botConnectionTab === "messenger"
+                          ? "bg-[#0A7CFF] text-white shadow-sm"
+                          : "text-slate-600 hover:text-slate-800"
+                      }`}
+                    >
+                      Messenger
+                    </button>
+                  </div>
+                </div>
+
+                {botConnectionTab === "telegram" && (
+                  <>
+                    <div className="mt-4">
+                      <h4 className="text-[10px] font-extrabold font-mono tracking-wider text-slate-600 uppercase">
+                        {t("telegramBotActivationWorkspace")}
+                      </h4>
+                      <p className="text-[10px] text-slate-400">{t("oneClickOnboardingDesc")}</p>
+                    </div>
+
+                    {storeState.config.telegramBotUsername && (
+                      <div className="mt-4 p-3 bg-sky-50 border border-sky-100 rounded-xl flex items-center justify-between gap-3 text-slate-700">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-[#229ED9]/10 text-[#229ED9] flex items-center justify-center font-bold text-sm shrink-0">
+                            Bot
+                          </div>
+                          <div>
+                            <h4 className="text-[11px] font-bold text-slate-900">
+                              {lang === "my" ? "တယ်လီဂရမ် Bot သို့ တိုက်ရိုက်သွားရန်" : "Direct Link to Active Telegram Bot"}
+                            </h4>
+                            <p className="text-[9px] text-slate-400 font-mono">
+                              @{storeState.config.telegramBotUsername.replace("@", "")}
+                            </p>
+                          </div>
+                        </div>
+                        <a
+                          href={`https://t.me/${storeState.config.telegramBotUsername.replace("@", "")}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded-lg text-[10px] font-bold bg-[#229ED9] hover:bg-[#34aadf] text-white flex items-center gap-1 cursor-pointer transition-all shadow-sm shrink-0 flex items-center gap-1"
+                        >
+                          <Send size={11} className="rotate-45" />
+                          <span>{t("liveBot")}</span>
+                          <ExternalLink size={10} />
+                        </a>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleOnboardingSubmit} className="space-y-4 mt-5 text-xs text-slate-600">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("storeNameLabel")}</label>
+                        <input
+                          type="text"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono"
+                          value={configDraft?.shopName || ""}
+                          onChange={(e) => setConfigDraft((prev) => prev ? ({ ...prev, shopName: e.target.value }) : prev)}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("smeOwnerNameLabel")}</label>
+                          <input
+                            type="text"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono"
+                            value={configDraft?.ownerName || ""}
+                            onChange={(e) => setConfigDraft((prev) => prev ? ({ ...prev, ownerName: e.target.value }) : prev)}
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("contactPhoneLabel")}</label>
+                          <input
+                            type="text"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono"
+                            value={configDraft?.phone || ""}
+                            onChange={(e) => setConfigDraft((prev) => prev ? ({ ...prev, phone: e.target.value }) : prev)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center">
+                            <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("customBotTokenLabel")}</label>
+                            <span className="text-[8px] font-mono text-indigo-500 select-none bg-indigo-50 px-1 rounded">{t("setViaBotFather")}</span>
+                          </div>
+                          <input
+                            type="text"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono text-[9px]"
+                            value={configDraft?.telegramBotToken || ""}
+                            onChange={(e) => setConfigDraft((prev) => prev ? ({ ...prev, telegramBotToken: e.target.value }) : prev)}
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("telegramBotUsernameLabel")}</label>
+                          <input
+                            type="text"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono"
+                            value={configDraft?.telegramBotUsername || ""}
+                            onChange={(e) => setConfigDraft((prev) => prev ? ({ ...prev, telegramBotUsername: e.target.value }) : prev)}
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={savingAction}
+                        className="w-full bg-[#0f1d3a] hover:bg-indigo-900 text-white font-bold py-3 rounded-xl cursor-pointer uppercase text-xs tracking-wider"
+                      >
+                        {savingAction ? "Re-connecting..." : t("saveStoreSettingsBtn")}
+                      </button>
+                    </form>
+                  </>
                 )}
 
-                <form onSubmit={handleOnboardingSubmit} className="space-y-4 mt-5 text-xs text-slate-600">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("storeNameLabel")}</label>
-                    <input
-                      type="text"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono"
-                      value={storeState.config.shopName}
-                      onChange={(e) => setStoreState({
-                        ...storeState,
-                        config: { ...storeState.config, shopName: e.target.value }
-                      })}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("smeOwnerNameLabel")}</label>
-                      <input
-                        type="text"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono"
-                        value={storeState.config.ownerName}
-                        onChange={(e) => setStoreState({
-                          ...storeState,
-                          config: { ...storeState.config, ownerName: e.target.value }
-                        })}
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("contactPhoneLabel")}</label>
-                      <input
-                        type="text"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono"
-                        value={storeState.config.phone}
-                        onChange={(e) => setStoreState({
-                          ...storeState,
-                          config: { ...storeState.config, phone: e.target.value }
-                        })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center">
-                        <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("customBotTokenLabel")}</label>
-                        <span className="text-[8px] font-mono text-indigo-500 select-none bg-indigo-50 px-1 rounded">{t("setViaBotFather")}</span>
+                {botConnectionTab === "messenger" && (
+                  <div className="mt-4 space-y-4">
+                    <div className="p-3 rounded-xl border border-blue-100 bg-blue-50/60">
+                      <div className="text-[10px] font-extrabold font-mono tracking-wider text-blue-700 uppercase">
+                        FACEBOOK MESSENGER BOT ACTIVATION WORKSPACE
                       </div>
-                      <input
-                        type="text"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono text-[9px]"
-                        value={storeState.config.telegramBotToken}
-                        onChange={(e) => setStoreState({
-                          ...storeState,
-                          config: { ...storeState.config, telegramBotToken: e.target.value }
-                        })}
-                      />
+                      <div className="text-[10px] text-slate-600 mt-1 leading-relaxed">
+                        {lang === "my"
+                          ? "Messenger ဘော့တ်ကို သင့် Facebook Page နဲ့ ချိတ်ဆက်ရန် “Connect Facebook Page” ကိုနှိပ်ပါ။ Developer အနေဖြင့် token/id ထည့်စရာမလိုပါ။"
+                          : "Click “Connect Facebook Page” to link Messenger. No tokens or IDs required."}
+                      </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("telegramBotUsernameLabel")}</label>
-                      <input
-                        type="text"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono"
-                        value={storeState.config.telegramBotUsername}
-                        onChange={(e) => setStoreState({
-                          ...storeState,
-                          config: { ...storeState.config, telegramBotUsername: e.target.value }
-                        })}
-                      />
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.open("http://localhost:8000/messenger/oauth/start", "_blank", "noopener,noreferrer");
+                        }}
+                        className="flex-1 bg-[#0A7CFF] hover:bg-[#0a72ea] text-white font-bold py-3 rounded-xl cursor-pointer uppercase text-xs tracking-wider"
+                      >
+                        Connect Facebook Page
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={fetchMessengerStatus}
+                        disabled={loadingMessengerStatus}
+                        className="flex-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold py-3 rounded-xl cursor-pointer uppercase text-xs tracking-wider"
+                      >
+                        {loadingMessengerStatus ? "Checking..." : "Refresh Status"}
+                      </button>
+                    </div>
+
+                    <div className="p-3 rounded-xl border border-slate-200 bg-white">
+                      <div className="text-[9px] font-extrabold font-mono tracking-wider text-slate-500 uppercase">
+                        Connection status
+                      </div>
+                      {messengerStatus?.connected ? (
+                        <div className="mt-2 text-xs text-slate-700">
+                          <div className="font-bold text-emerald-700">Connected</div>
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            {(messengerStatus.pages || []).length > 0
+                              ? `Pages: ${(messengerStatus.pages || []).map((p: any) => p.page_name || p.page_id).join(", ")}`
+                              : "Page connected, but page details not available."}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-xs text-slate-600">
+                          <div className="font-bold text-amber-700">Not connected yet</div>
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            {lang === "my"
+                              ? "Connect Facebook Page ကို နှိပ်ပြီး Facebook မှ ခွင့်ပြုချက်ပေးပါ။"
+                              : "Click Connect Facebook Page and finish Facebook authorization."}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  <button
-                    type="submit"
-                    disabled={savingAction}
-                    className="w-full bg-[#0f1d3a] hover:bg-indigo-900 text-white font-bold py-3 rounded-xl cursor-pointer uppercase text-xs tracking-wider"
-                  >
-                    {savingAction ? "Re-connecting..." : t("saveStoreSettingsBtn")}
-                  </button>
-                </form>
+                )}
               </div>
             </div>
           )}
