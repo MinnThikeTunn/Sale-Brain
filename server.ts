@@ -27,6 +27,10 @@ const DEFAULT_STATE: SystemState = {
     currency: "MMK",
     telegramBotToken: "7193810482:AAFlk_x38asdf823asd984",
     telegramBotUsername: "ShwePathein_Sale_bot",
+    messengerPageAccessToken: "",
+    messengerVerifyToken: "",
+    messengerBotId: "messenger",
+    messengerBotName: "Messenger Bot",
     onboardingCompleted: false
   },
   products: [
@@ -317,7 +321,18 @@ app.post("/api/reset", (req, res) => {
 
 // 3. SME Owner Onboarding Config
 app.post("/api/onboarding", async (req, res) => {
-  const { shopName, ownerName, phone, telegramBotToken, telegramBotUsername, onboardingCompleted } = req.body;
+  const {
+    shopName,
+    ownerName,
+    phone,
+    telegramBotToken,
+    telegramBotUsername,
+    messengerPageAccessToken,
+    messengerVerifyToken,
+    messengerBotId,
+    messengerBotName,
+    onboardingCompleted
+  } = req.body;
   state.config = {
     shopName: shopName || "SME Store",
     ownerName: ownerName || "Owner",
@@ -325,6 +340,10 @@ app.post("/api/onboarding", async (req, res) => {
     currency: "MMK",
     telegramBotToken: telegramBotToken || "",
     telegramBotUsername: telegramBotUsername || "",
+    messengerPageAccessToken: messengerPageAccessToken || "",
+    messengerVerifyToken: messengerVerifyToken || "",
+    messengerBotId: messengerBotId || "messenger",
+    messengerBotName: messengerBotName || "Messenger Bot",
     onboardingCompleted: onboardingCompleted !== undefined ? onboardingCompleted : true
   };
   saveState();
@@ -353,6 +372,25 @@ app.post("/api/onboarding", async (req, res) => {
   }
 
   res.json({ success: true, config: state.config });
+});
+
+// 3b. Messenger connection status (proxy to Omnichannel_backend to avoid CORS)
+app.get("/api/messenger/status", async (req, res) => {
+  try {
+    const r = await fetch("http://localhost:8000/messenger/status");
+    const contentType = r.headers.get("Content-Type") || "";
+    if (contentType.includes("application/json")) {
+      const data = await r.json();
+      return res.json(data);
+    }
+    const text = await r.text();
+    return res.status(502).json({ error: "Unexpected response from Omnichannel_backend", raw: text });
+  } catch (e: any) {
+    return res.status(502).json({
+      error: "Failed to reach Omnichannel_backend on http://localhost:8000",
+      details: String(e?.message || e)
+    });
+  }
 });
 
 
