@@ -4,3 +4,11 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
+
+html, body {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px; /* Slightly bigger default for clear readability */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
