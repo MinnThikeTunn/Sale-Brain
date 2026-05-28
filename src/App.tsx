@@ -31,6 +31,7 @@ import {
 import { CustomChart } from "./components/CustomChart";
 import { TelegramSimulator } from "./components/TelegramSimulator";
 import { SmartMarketing } from "./components/SmartMarketing";
+import { Onboarding } from "./components/Onboarding";
 import { Product, DeliveryZone, Order, ShopConfig, TelegramSession, SystemState } from "./types";
 
 // Complete localized dictionary for total English & Burmese translation sync
@@ -40,6 +41,7 @@ const dict = {
     smeHubTab: "SME HUB",
     subtitle: "",
     webhooksActive: "Webhooks Active",
+    editBusinessProfile: "Edit Profile Info",
     catalogItems: "Catalog items",
     resetDemoState: "Reset Demo State",
     liveBot: "Live Bot",
@@ -54,7 +56,7 @@ const dict = {
     lowStockMsg: "",
     allInventoriesHealthy: "All inventories healthy",
     webhookAlertTitle: "New Payment Receipt Proof ({count})",
-    webhookAlertBody: "Customers submitted prepay transactions. Owner validation check is required.",
+    webhookAlertBody: "Owner validation required.",
     reviewReceipts: "Review Receipts now",
     pendingTransactionsLedger: "PENDING TRANSACTIONS & SALES LEDGER",
     validateSubmittedScreenshots: "",
@@ -78,8 +80,8 @@ const dict = {
     transactionId: "Transaction ID",
     paymentChannel: "Payment Channel",
     totalCharged: "Total Charged",
-    confirmGenerateInvoice: "✔ Confirm & Generate Invoice",
-    rejectScreenshot: "❌ Reject Screenshot",
+    confirmGenerateInvoice: "Confirm & Generate Invoice",
+    rejectScreenshot: "Reject Screenshot",
     closeEvalPane: "Close evaluation pane",
     submittedScreenshotEvidence: "Submitted Screenshot Evidence:",
     premiumStoreCatalog: "PREMIUM STORE CATALOGUE",
@@ -87,8 +89,8 @@ const dict = {
     addNewProduct: "Add New Product",
     editInfo: "Edit Info",
     delete: "Delete",
-    editProductHeader: "✏ EDIT PRODUCT",
-    addNewProductHeader: "📦 ADD NEW PREMIUM PRODUCT",
+    editProductHeader: "EDIT PRODUCT",
+    addNewProductHeader: "ADD NEW PREMIUM PRODUCT",
     brandNameLabel: "Product Brand Name:",
     categoryLabel: "Category:",
     unitPriceLabel: "Unit Price (MMK):",
@@ -116,7 +118,7 @@ const dict = {
     strategicAnalysisPoweredBySparkles: "",
     reEvaluateStrategy: "Re-evaluate strategy",
     analyzingPatterns: "Sales Brain is analyzing customer patterns...",
-    telegramBotActivationWorkspace: "🤖 TELEGRAM BOT ACTIVATION WORKSPACE",
+    telegramBotActivationWorkspace: "TELEGRAM BOT ACTIVATION WORKSPACE",
     oneClickOnboardingDesc: "",
     storeNameLabel: "Store Name:",
     smeOwnerNameLabel: "SME Owner Name:",
@@ -124,8 +126,8 @@ const dict = {
     customBotTokenLabel: "Custom Bot Token ID:",
     setViaBotFather: "Set via @BotFather",
     telegramBotUsernameLabel: "Telegram Bot Username (@):",
-    saveStoreSettingsBtn: "✔ SAVE STORE SETTINGS AND ACTIVATED TELEGRAM VIRTUAL DEPLOY",
-    liveSupportRoomHeader: "🧑‍💼 SME CRM LIVE SUPPORT ROOM",
+    saveStoreSettingsBtn: "SAVE STORE SETTINGS AND ACTIVATED TELEGRAM VIRTUAL DEPLOY",
+    liveSupportRoomHeader: "SME CRM LIVE SUPPORT ROOM",
     chatTakeoverDesc: "",
     activeUserSessionsLabel: "ACTIVE USER SESSIONS:",
     supportLabel: "SUPPORT",
@@ -134,15 +136,15 @@ const dict = {
     activeModeLabel: "Active mode:",
     manualSupportOverrideLabel: "Manual Support Override",
     automatedBotActiveLabel: "Automated Bot active",
-    turnOnAiBotLabel: "✔ Turn On AI Bot Agent",
-    switchToManualLabel: "⚠ Switch to Manual Mode",
+    turnOnAiBotLabel: "Turn On AI Bot Agent",
+    switchToManualLabel: "Switch to Manual Mode",
     ownerChatInputPlaceholder: "Chat direct with client here...",
     takeoverPlaceholder: "Takeover session to text with customers personally...",
     sendMessageBtn: "Send Message",
     integrationQuickGuidance: "INTEGRATION QUICK GUIDANCE",
     quickGuidanceExplanation: "SME shop owners add/delete items in the left Product Matrix, adjust Delivery Matrix, and click the chat buttons on the right inside our simulator. Chat responses are produced immediately.",
-    viewSimulatorButton: "Simulate Customer Chat 📱",
-    closeSimulatorButton: "Hide Chat Simulator ✖",
+    viewSimulatorButton: "Simulate Customer Chat",
+    closeSimulatorButton: "Hide Chat Simulator",
     simulationSandboxTitle: "Telegram Sandbox Client Simulator",
     chooseLanguageLabel: "Language / ဘာသာစကား",
     tabOrders: "Orders Ledger",
@@ -164,6 +166,7 @@ const dict = {
     smeHubTab: "အက်စအမ်အီး ဗဟို",
     subtitle: "",
     webhooksActive: "ချိတ်ဆက်မှု အဆင်သင့်ရှိသည်",
+    editBusinessProfile: "လုပ်ငန်းအချက်အလက် ပြင်မည်",
     catalogItems: "လက်ရှိပစ္စည်းများ",
     resetDemoState: "စမ်းသပ်မှုစနစ် ပြန်စရန်",
     liveBot: "တယ်လီဂရမ် ဘော့တ်",
@@ -178,7 +181,7 @@ const dict = {
     lowStockMsg: "",
     allInventoriesHealthy: "ကုန်ပစ္စည်း အားလုံး လုံလောက်မှုရှိပါသည်",
     webhookAlertTitle: "ငွေလွှဲဖြတ်ပိုင်းအသစ် ရောက်ရှိလာခြင်း ({count})",
-    webhookAlertBody: "ဝယ်သူမှ ငွေလွှဲဖြတ်ပိုင်းနှင့် နောက်ဆုံးဂဏန်း ၆ လုံး တင်ပြထားပါသည်။ ဆိုင်ရှင်မှ စစ်ဆေးပေးရန် လိုအပ်ပါသည်။",
+    webhookAlertBody: "စစ်ဆေးရန်လိုအပ်ပါသည်။",
     reviewReceipts: "ဖြတ်ပိုင်းများ အခုပဲ စစ်ဆေးရန်",
     pendingTransactionsLedger: "ငွေလွှဲစစ်ဆေးရန်နှင့် ရောင်းရငွေစာရင်းချုပ်",
     validateSubmittedScreenshots: "",
@@ -202,8 +205,8 @@ const dict = {
     transactionId: "ငွေလွှဲကုဒ် ID (Transaction ID)",
     paymentChannel: "ငွေပေးချေမှု လမ်းကြောင်း",
     totalCharged: "ကျသင့်ငွေ စုစုပေါင်း",
-    confirmGenerateInvoice: "✔ ငွေလွှဲမှန်ကန်ကြောင်း အတည်ပြုပြီး ဘောက်ချာပို့ရန်",
-    rejectScreenshot: "❌ ဖြတ်ပိုင်းအချက်အလက်ကို ပယ်ဖျက်ရန်",
+    confirmGenerateInvoice: "ငွေလွှဲမှန်ကန်ကြောင်း အတည်ပြုပြီး ဘောက်ချာပို့ရန်",
+    rejectScreenshot: "ဖြတ်ပိုင်းအချက်အလက်ကို ပယ်ဖျက်ရန်",
     closeEvalPane: "စစ်ဆေးပြီး စာမျက်နှာကိုပိတ်ရန်",
     submittedScreenshotEvidence: "ဝယ်သူပေးပို့လာသည့် ငွေလွှဲဖြတ်ပိုင်း -",
     premiumStoreCatalog: "ရောင်းချနေသည့် ကုန်ပစ္စည်းများစာရင်း",
@@ -211,8 +214,8 @@ const dict = {
     addNewProduct: "ကုန်ပစ္စည်းအသစ် ထည့်သွင်းရန်",
     editInfo: "ပြင်ဆင်ရန်",
     delete: "ဖျက်ရန်",
-    editProductHeader: "✏ ကုန်ပစ္စည်းအချက်အလက် ပြင်ဆင်ရန်",
-    addNewProductHeader: "📦 ကုန်ပစ္စည်းအသစ် ထည့်သွင်းခြင်း",
+    editProductHeader: "ကုန်ပစ္စည်းအချက်အလက် ပြင်ဆင်ရန်",
+    addNewProductHeader: "ကုန်ပစ္စည်းအသစ် ထည့်သွင်းခြင်း",
     brandNameLabel: "ကုန်ပစ္စည်းအမည် -",
     categoryLabel: "အမျိုးအစား သတ်မှတ်ချက် -",
     unitPriceLabel: "သတ်မှတ်စျေးနှုန်း (ကျပ်) -",
@@ -240,7 +243,7 @@ const dict = {
     strategicAnalysisPoweredBySparkles: "",
     reEvaluateStrategy: "အကြံပြုချက်ပြန်လည်တွက်ချက်ရန်",
     analyzingPatterns: "အေအိုင်မှ ရောင်းဝယ်မှုပုံစံများကို စီစစ်တွက်ချက်နေပါသည်...",
-    telegramBotActivationWorkspace: "🤖 တယ်လီဂရမ် Bot စတင်ချိန်ညှိမှု လုပ်ငန်းခွင်",
+    telegramBotActivationWorkspace: "တယ်လီဂရမ် Bot စတင်ချိန်ညှိမှု လုပ်ငန်းခွင်",
     oneClickOnboardingDesc: "",
     storeNameLabel: "ဆိုင်အမည် -",
     smeOwnerNameLabel: "ဆိုင်ရှင်အမည် -",
@@ -248,8 +251,8 @@ const dict = {
     customBotTokenLabel: "ရရှိထားသော တယ်လီဂရမ် Bot သော့ချက် (Token ID) -",
     setViaBotFather: "တယ်လီဂရမ် @BotFather တွင် ရယူပါ",
     telegramBotUsernameLabel: "တယ်လီဂရမ် Bot ယူဇာနိမ်း (@) -",
-    saveStoreSettingsBtn: "✔ ဆိုင်အချက်အလက် စနစ် သိမ်းဆည်းပြီး တယ်လီဂရမ်နှင့် ချိတ်ဆက်မည်",
-    liveSupportRoomHeader: "🧑‍💼 ဆိုင်ရှင် တိုက်ရိုက် ဝယ်သူစကားပြောခန်း (CRM)",
+    saveStoreSettingsBtn: "ဆိုင်အချက်အလက် စနစ် သိမ်းဆည်းပြီး တယ်လီဂရမ်နှင့် ချိတ်ဆက်မည်",
+    liveSupportRoomHeader: "ဆိုင်ရှင် တိုက်ရိုက် ဝယ်သူစကားပြောခန်း (CRM)",
     chatTakeoverDesc: "",
     activeUserSessionsLabel: "လက်ရှိ စကားပြောနေဆဲ ဝယ်သူများ -",
     supportLabel: "ဆိုင်ရှင်",
@@ -258,15 +261,15 @@ const dict = {
     activeModeLabel: "လက်ရှိစနစ်ပုံစံ -",
     manualSupportOverrideLabel: "ဆိုင်ရှင် တိုက်ရိုက် ဖြေကြားနေသည်",
     automatedBotActiveLabel: "အလိုအလျောက် AI ဖြေကြားနေသည်",
-    turnOnAiBotLabel: "✔ AI စနစ်ကို ပြန်ဖွင့်ရန်",
-    switchToManualLabel: "⚠ ဆိုင်ရှင် တိုက်ရိုက်ဝင်ဖြေရန် (Takeover)",
+    turnOnAiBotLabel: "AI စနစ်ကို ပြန်ဖွင့်ရန်",
+    switchToManualLabel: "ဆိုင်ရှင် တိုက်ရိုက်ဝင်ဖြေရန် (Takeover)",
     ownerChatInputPlaceholder: "ဝယ်သူထံ စာတိုက်ရိုက်ရေးသားရန်...",
     takeoverPlaceholder: "ဝယ်သူနှင့် တိုက်ရိုက်စကားပြောရန် Takeover စနစ်ကို နှိပ်ပါ...",
     sendMessageBtn: "စာပို့ရန်",
     integrationQuickGuidance: "လမ်းညွှန်ချက် အကျဉ်းချုပ်",
     quickGuidanceExplanation: "ဆိုင်ရှင်ဦးစားပေးစနစ်ဖြစ်ပြီး ဘယ်ဘက်ခြမ်းတွင် ဆိုင်အော်ဒါများစစ်ဆေးခြင်း၊ ပစ္စည်းစာရင်းထိန်းချုပ်ခြင်းများ ပြುလုပ်နိုင်ပါသည်။ ညာဘက်ခြမ်း 'စမ်းသပ်ဝယ်ယူသူ စနစ်' ကိုဖွင့်ပြီး တယ်လီဂရမ်ဝယ်ယူမှုပုံစံများကို တိုက်ရိုက်စမ်းသပ်ကြည့်ရှုနိုင်သည်။",
-    viewSimulatorButton: "ဝယ်သူစုံစမ်းစမ်းသပ်ခန်း အသုံးပြုရန် 📱",
-    closeSimulatorButton: "စမ်းသပ်ခန်းပြန်သိမ်းရန် ✖",
+    viewSimulatorButton: "ဝယ်သူစုံစမ်းစမ်းသပ်ခန်း အသုံးပြုရန်",
+    closeSimulatorButton: "စမ်းသပ်ခန်းပြန်သိမ်းရန်",
     simulationSandboxTitle: "တယ်လီဂရမ် ဝယ်သူ စမ်းသပ်ဝယ်ယူမှု စနစ်",
     chooseLanguageLabel: "Language / ဘာသာစကား",
     tabOrders: "အော်ဒါမှတ်တမ်း",
@@ -360,7 +363,6 @@ export default function App() {
   // Run initial state loading and setup periodic fast poll to grab customer simulator inputs immediately!
   useEffect(() => {
     fetchState();
-    fetchAiStrategy();
 
     // High frequency interval to handle real-time simulation updates
     const interval = setInterval(() => {
@@ -369,6 +371,11 @@ export default function App() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch AI strategy when the selected language changes
+  useEffect(() => {
+    fetchAiStrategy();
+  }, [lang]);
 
   // Display toast alerts
   const showToast = (text: string, type: "success" | "info" = "success") => {
@@ -382,7 +389,9 @@ export default function App() {
   const fetchAiStrategy = async (force: boolean = false) => {
     setLoadingAi(true);
     try {
-      const url = force ? "/api/ai/strategy?force=true" : "/api/ai/strategy";
+      const url = force 
+        ? `/api/ai/strategy?force=true&lang=${lang}` 
+        : `/api/ai/strategy?lang=${lang}`;
       const res = await fetch(url, { method: "POST" });
       if (res.ok) {
         const contentType = res.headers.get("Content-Type") || "";
@@ -683,6 +692,55 @@ export default function App() {
     );
   }
 
+  // Intercept workflow with Onboarding Screen
+  if (!storeState.config.onboardingCompleted) {
+    return (
+      <Onboarding
+        lang={lang}
+        initialShopName={storeState.config.shopName}
+        initialOwnerName={storeState.config.ownerName}
+        onLangChange={setLang}
+        onComplete={async (profile, aiSummary) => {
+          // Instantly patch the frontend memory block for zero-delay entry feel
+          const updatedState = {
+            ...storeState,
+            config: {
+              ...storeState.config,
+              shopName: profile.shopName,
+              ownerName: profile.ownerName,
+              onboardingCompleted: true
+            }
+          };
+          setStoreState(updatedState);
+          setAiAnalysisText(aiSummary);
+
+          // Persist settings to backing JSON state
+          try {
+            await fetch("/api/onboarding", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                ...storeState.config,
+                shopName: profile.shopName,
+                ownerName: profile.ownerName,
+                onboardingCompleted: true
+              })
+            });
+            showToast(
+              lang === "my"
+                ? "အချက်အလက် စနစ်သိမ်းဆည်းအောင်မြင်ပြီး လုပ်ငန်းဒိုင်ယာလော့ခ် ဖွင့်လှစ်ပါပြီ။ 🟢"
+                : "Setup Completed! Welcome to your SME dashboard dashboard. 🟢",
+              "success"
+            );
+            fetchState();
+          } catch (err) {
+            console.error("[App] Saving onboarding stats failed", err);
+          }
+        }}
+      />
+    );
+  }
+
   // Derived dashboard analytics values
   const productsCount = storeState.products.length;
   const deliveryZonesCount = storeState.deliveryZones.length;
@@ -730,7 +788,7 @@ export default function App() {
       <header className="sticky top-0 z-40 bg-white border-b border-sky-100 px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-sky-100 text-slate-900 flex items-center justify-center shadow-xs font-bold text-lg select-none shrink-0 border border-sky-200/40">
-            📊
+            <TrendingUp size={18} className="text-sky-700" />
           </div>
           <div className="text-center sm:text-left">
             <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 justify-center">
@@ -747,11 +805,36 @@ export default function App() {
         {/* Global Control Row */}
         <div className="flex flex-wrap items-center justify-center gap-3">
           
-          {/* Quick status indicators */}
-          <div className="flex items-center gap-2 text-[9px] font-mono bg-sky-50 p-1 px-2.5 rounded-lg border border-sky-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-slate-650">{t("webhooksActive")}</span>
-          </div>
+          {/* Edit Business Profile / Onboarding Configuration Desk */}
+          <button
+            onClick={async () => {
+              // Update local state is instantaneous
+              setStoreState((prev) => ({
+                ...prev,
+                config: {
+                  ...prev.config,
+                  onboardingCompleted: false
+                }
+              }));
+              // Synchronously tell backend to set onboardingCompleted to false so poller doesn't override
+              try {
+                await fetch("/api/onboarding", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    ...storeState.config,
+                    onboardingCompleted: false
+                  })
+                });
+              } catch (e) {
+                console.warn("Could not save onboarding state back to Server:", e);
+              }
+            }}
+            className="flex items-center gap-1.5 text-[9px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 p-1.5 px-3 rounded-lg border border-indigo-200 transition-colors cursor-pointer"
+          >
+            <Edit2 size={11} className="text-indigo-600 animate-pulse" />
+            <span>{t("editBusinessProfile")}</span>
+          </button>
 
           {/* Fully custom Burmese - English switch button */}
           <div className="flex bg-sky-55 p-0.5 rounded-lg border border-sky-200 shrink-0">
@@ -761,7 +844,7 @@ export default function App() {
                 lang === "en" ? "bg-white text-slate-900 shadow-xs border border-sky-100" : "text-slate-500 hover:text-black"
               }`}
             >
-              🇬🇧 EN
+              EN
             </button>
             <button
               onClick={() => setLang("my")}
@@ -769,7 +852,7 @@ export default function App() {
                 lang === "my" ? "bg-white text-slate-900 shadow-xs border border-sky-100" : "text-slate-500 hover:text-black"
               }`}
             >
-              🇲🇲 မြန်မာ
+              မြန်မာ
             </button>
           </div>
 
@@ -817,7 +900,7 @@ export default function App() {
                 </div>
                 <div>
                   <h4 className="text-xs font-bold font-mono tracking-wide uppercase">
-                    🛎 {t("webhookAlertTitle").replace("{count}", String(unverifiedPrepaysCount))}
+                    {t("webhookAlertTitle").replace("{count}", String(unverifiedPrepaysCount))}
                   </h4>
                   <p className="text-[10px] text-slate-900 font-medium leading-relaxed mt-0.5">
                     {t("webhookAlertBody")}
@@ -844,7 +927,7 @@ export default function App() {
             
             <div className="bg-white border border-slate-200/60 p-5 rounded-2xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
               <span className="text-[9px] font-bold font-mono tracking-wider text-slate-400 uppercase">
-                ⚙ {t("totalStoreRevenue")}
+                {t("totalStoreRevenue")}
               </span>
               <div className="mt-2.5">
                 <span className="text-lg font-bold font-mono text-slate-900">
@@ -856,7 +939,7 @@ export default function App() {
 
             <div className="bg-white border border-slate-200/60 p-5 rounded-2xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
               <span className="text-[9px] font-bold font-mono tracking-wider text-slate-400 uppercase">
-                📦 {t("validatedOrders")}
+                {t("validatedOrders")}
               </span>
               <div className="mt-2.5">
                 <span className="text-lg font-bold font-mono text-slate-900">
@@ -868,7 +951,7 @@ export default function App() {
 
             <div className="bg-white border border-slate-200/60 p-5 rounded-2xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
               <span className="text-[9px] font-bold font-mono tracking-wider text-slate-400 uppercase">
-                🔍 {t("needsVerification")}
+                {t("needsVerification")}
               </span>
               <div className="mt-2.5">
                 <span className={`text-lg font-extrabold font-mono ${unverifiedPrepaysCount > 0 ? "text-amber-600 animate-pulse" : "text-slate-900"}`}>
@@ -880,7 +963,7 @@ export default function App() {
 
             <div className="bg-white border border-slate-200/60 p-5 rounded-2xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
               <span className="text-[9px] font-bold font-mono tracking-wider text-slate-400 uppercase">
-                ⚠️ {t("stockWarnings")}
+                {t("stockWarnings")}
               </span>
               <div className="mt-2.5">
                 <span className={`text-lg font-extrabold font-mono ${alertLowStock.length > 0 ? "text-rose-600" : "text-slate-900"}`}>
@@ -902,7 +985,7 @@ export default function App() {
                   : "border-transparent text-slate-500 hover:text-black"
               }`}
             >
-              📋 {t("tabOrders")}
+              {t("tabOrders")}
             </button>
             <button
               onClick={() => setActiveTab("products")}
@@ -912,7 +995,7 @@ export default function App() {
                   : "border-transparent text-slate-500 hover:text-black"
               }`}
             >
-              📦 {t("tabProducts")}
+              {t("tabProducts")}
             </button>
             <button
               onClick={() => setActiveTab("delivery")}
@@ -922,7 +1005,7 @@ export default function App() {
                   : "border-transparent text-slate-500 hover:text-black"
               }`}
             >
-              🛵 {t("tabDelivery")}
+              {t("tabDelivery")}
             </button>
             <button
               onClick={() => setActiveTab("insights")}
@@ -932,7 +1015,7 @@ export default function App() {
                   : "border-transparent text-slate-500 hover:text-black"
               }`}
             >
-              🧠 {t("tabInsights")}
+              {t("tabInsights")}
             </button>
             <button
               onClick={() => setActiveTab("bot_config")}
@@ -942,7 +1025,7 @@ export default function App() {
                   : "border-transparent text-slate-500 hover:text-black"
               }`}
             >
-              📶 {t("tabConfig")}
+              {t("tabConfig")}
             </button>
             <button
               onClick={() => setActiveTab("live_support")}
@@ -952,7 +1035,7 @@ export default function App() {
                   : "border-transparent text-slate-500 hover:text-black"
               }`}
             >
-              🧑‍💼 {t("tabLiveSupport")}
+              {t("tabLiveSupport")}
             </button>
             <button
               onClick={() => setActiveTab("smart_marketing")}
@@ -962,15 +1045,14 @@ export default function App() {
                   : "border-transparent text-slate-500 hover:text-black"
               }`}
             >
-              🚀 {t("tabSmartMarketing")}
+              {t("tabSmartMarketing")}
             </button>
 
-            {/* Float Reset Button */}
             <button
               onClick={handleResetSystem}
               className="ml-auto text-[9px] font-mono font-bold text-rose-700 hover:text-rose-800 bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-md cursor-pointer tracking-wider shrink-0"
             >
-              ♻ {t("resetDemoState")}
+              {t("resetDemoState")}
             </button>
           </nav>
 
@@ -984,7 +1066,7 @@ export default function App() {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
                   <div>
                     <h3 className="text-xs font-extrabold tracking-wider font-mono text-slate-900">
-                      🗄 {t("pendingTransactionsLedger")}
+                      {t("pendingTransactionsLedger")}
                     </h3>
                   </div>
                   
@@ -1005,7 +1087,6 @@ export default function App() {
                         <th className="p-3">{t("clientCustomer")}</th>
                         <th className="p-3">{t("addressLocation")}</th>
                         <th className="p-3">{t("paymentMethod")}</th>
-                        <th className="p-3">{t("status")}</th>
                         <th className="p-3 text-right">{t("invoiceSum")}</th>
                         <th className="p-3 text-center">{t("receiptVerification")}</th>
                       </tr>
@@ -1013,7 +1094,7 @@ export default function App() {
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {storeState.orders.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="p-8 text-center text-slate-400 italic">No business orders submitted yet.</td>
+                          <td colSpan={6} className="p-8 text-center text-slate-400 italic">No business orders submitted yet.</td>
                         </tr>
                       ) : (
                         storeState.orders.map((o) => {
@@ -1039,13 +1120,6 @@ export default function App() {
                                   {o.paymentMethod.toUpperCase()}
                                 </span>
                               </td>
-                              <td className="p-3 text-center sm:text-left">
-                                <span className={`text-[9px] font-bold uppercase ${
-                                  isConfirmed ? "text-emerald-500" : isCancelled ? "text-rose-500 font-semibold" : "text-amber-500 font-bold animate-pulse"
-                                }`}>
-                                  ● {o.status}
-                                </span>
-                              </td>
                               <td className="p-3 text-right font-bold text-slate-900">{o.totalAmount.toLocaleString()} MMK</td>
                               <td className="p-3 text-center">
                                 {isVerifying ? (
@@ -1053,21 +1127,21 @@ export default function App() {
                                     onClick={() => setActiveVerificationReceipt(o)}
                                     className="bg-amber-500 text-slate-950 px-2.5 py-1 rounded text-[10px] font-bold shadow hover:bg-amber-400 transition-all cursor-pointer"
                                   >
-                                    🔍 {t("evaluateReceipt")}
+                                    {t("evaluateReceipt")}
                                   </button>
                                 ) : o.paymentMethod === "cod" && o.status === "pending" ? (
                                   <button
                                     onClick={() => handleUpdateOrderStatus(o.id, "confirmed")}
                                     className="bg-sky-600 text-white px-2 py-0.5 rounded text-[10px] font-bold hover:bg-sky-500 transition-all cursor-pointer"
                                   >
-                                    ✔ {t("approveCod")}
+                                    {t("approveCod")}
                                   </button>
                                 ) : o.status === "confirmed" ? (
                                   <button
                                     onClick={() => handleUpdateOrderStatus(o.id, "completed")}
                                     className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[10px] font-semibold hover:bg-emerald-500 transition-all cursor-pointer"
                                   >
-                                    ✔ {t("markCompleted")}
+                                    {t("markCompleted")}
                                   </button>
                                 ) : (
                                   <span className="text-[9px] text-slate-400 italic">{t("noAuditNeeded")}</span>
@@ -1089,7 +1163,7 @@ export default function App() {
                   
                   <div className="md:col-span-7 space-y-4">
                     <span className="text-[9px] font-bold font-mono text-amber-600 select-none block bg-amber-50 p-2 rounded-lg border border-amber-100">
-                      ⚠️ {t("evaluateReceiptHeader")}
+                      {t("evaluateReceiptHeader")}
                     </span>
 
                     <div className="grid grid-cols-2 gap-4 text-xs font-mono">
@@ -1167,7 +1241,7 @@ export default function App() {
               <div className="bg-white border border-slate-200/60 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
                 <div>
                   <h3 className="text-xs font-extrabold font-mono text-slate-900 uppercase">
-                    📋 {t("premiumStoreCatalog")}
+                    {t("premiumStoreCatalog")}
                   </h3>
                 </div>
                 <button
@@ -1192,7 +1266,7 @@ export default function App() {
                       {/* Out of stock tag warnings */}
                       {p.stock <= 5 && (
                         <span className="absolute left-2.5 top-2.5 text-[8px] font-bold bg-rose-600 text-white px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
-                          ⚠️ {t("lowStockTag")} ({p.stock})
+                          {t("lowStockTag")} ({p.stock})
                         </span>
                       )}
                     </div>
@@ -1203,7 +1277,6 @@ export default function App() {
                           {t("categories")[p.category as "Desserts" | "Beverages" | "Lifestyle" | "Snacks"] || p.category}
                         </div>
                         <h4 className="text-xs font-semibold text-slate-800 mt-1 line-clamp-1">{p.name}</h4>
-                        <p className="text-[10px] text-slate-400 leading-relaxed mt-1 line-clamp-2">{p.description}</p>
                       </div>
 
                       <div className="pt-2 border-t border-slate-100/80 flex items-center justify-between text-[11px]">
@@ -1394,7 +1467,7 @@ export default function App() {
             <div className="space-y-4">
               <div className="bg-white border border-slate-200/60 p-5 rounded-2xl shadow-sm">
                 <h3 className="text-xs font-extrabold font-mono text-slate-900 uppercase">
-                  🛵 {t("townshipDeliveryRateMatrix")}
+                  {t("townshipDeliveryRateMatrix")}
                 </h3>
 
                 {/* Insertion row */}
@@ -1471,7 +1544,7 @@ export default function App() {
                 <div className="md:col-span-8 flex flex-col justify-between">
                   <div className="bg-white border border-slate-200/60 rounded-2xl p-4 shadow-sm flex-1">
                     <h3 className="text-xs font-bold font-mono text-slate-600 uppercase tracking-wider mb-2">
-                      📈 {t("weeklyStoreVolume")}
+                      {t("weeklyStoreVolume")}
                     </h3>
                     <CustomChart data={weekdaysChartData} color="#4f46e5" title="Revenue Matrix" unit="MMK" />
                   </div>
@@ -1480,7 +1553,7 @@ export default function App() {
                 <div className="md:col-span-4 bg-white border border-slate-200/60 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
                   <div>
                     <h3 className="text-xs font-extrabold font-mono text-slate-700 uppercase tracking-wider mb-2">
-                      ⚖ {t("leanAccountingStatsSummary")}
+                      {t("leanAccountingStatsSummary")}
                     </h3>
                     
                     <div className="mt-4 space-y-3 text-xs font-mono">
@@ -1550,21 +1623,15 @@ export default function App() {
             <div className="space-y-4">
               <div className="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm text-slate-700">
                 <h3 className="text-xs font-extrabold font-mono text-slate-900 flex items-center gap-2 mb-1 uppercase">
-                  🤖 {t("telegramBotActivationWorkspace")}
+                  {t("telegramBotActivationWorkspace")}
                 </h3>
                 <p className="text-[10px] text-slate-400">{t("oneClickOnboardingDesc")}</p>
-
-                {isDefaultBot && (
-                  <div className="mt-3 p-2.5 bg-amber-50 text-amber-700 rounded-lg border border-amber-250 text-[9px] font-mono leading-relaxed">
-                    ℹ️ {t("defaultBotWarn")}
-                  </div>
-                )}
 
                 {storeState.config.telegramBotUsername && (
                   <div className="mt-4 p-3 bg-sky-50 border border-sky-100 rounded-xl flex items-center justify-between gap-3 text-slate-700">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-lg bg-[#229ED9]/10 text-[#229ED9] flex items-center justify-center font-bold text-sm shrink-0">
-                        🤖
+                        Bot
                       </div>
                       <div>
                         <h4 className="text-[11px] font-bold text-slate-900">
@@ -1679,7 +1746,7 @@ export default function App() {
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
                 <div>
                   <h3 className="text-xs font-extrabold font-mono text-slate-900 uppercase">
-                    🧑‍💼 {t("liveSupportRoomHeader")}
+                    {t("liveSupportRoomHeader")}
                   </h3>
                 </div>
 
@@ -1763,7 +1830,7 @@ export default function App() {
                   <form onSubmit={handleSendOwnerMessage} className="space-y-2">
                     <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
                       <span>
-                        {t("activeModeLabel")} {activeSession?.liveTakeoverActive ? `🟢 ${t("manualSupportOverrideLabel")}` : `🤖 ${t("automatedBotActiveLabel")}`}
+                        {t("activeModeLabel")} {activeSession?.liveTakeoverActive ? `${t("manualSupportOverrideLabel")}` : `${t("automatedBotActiveLabel")}`}
                       </span>
                       {activeSession?.liveTakeoverActive ? (
                         <button
@@ -1810,7 +1877,7 @@ export default function App() {
           )}
 
           {activeTab === "smart_marketing" && storeState && (
-            <SmartMarketing state={storeState} />
+            <SmartMarketing state={storeState} lang={lang} />
           )}
 
         </main>

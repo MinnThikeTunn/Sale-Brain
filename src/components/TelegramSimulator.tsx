@@ -38,10 +38,10 @@ export function TelegramSimulator({
 
   // Quick action suggested inputs
   const suggestions = [
-    { label: "Mingalabar Candy! 👋", text: "Mingalabar Candy! I want to browse products today." },
-    { label: "Add Pathein Halawa 🥞", text: "I want to add 1 Pathein Halawa to my bag, please!" },
-    { label: "Do you have Royal Tea? ☕", text: "Is the Royal Myanmar Tea pack available?" },
-    { label: "Talk to a Human ☎️", text: "I want to talk to a human customer agent" }
+    { label: "Mingalabar Candy!", text: "Mingalabar Candy! I want to browse products today." },
+    { label: "Add Pathein Halawa", text: "I want to add 1 Pathein Halawa to my bag, please!" },
+    { label: "Do you have Royal Tea?", text: "Is the Royal Myanmar Tea pack available?" },
+    { label: "Talk to a Human", text: "I want to talk to a human customer agent" }
   ];
 
   // Helper mock screenshot assets
