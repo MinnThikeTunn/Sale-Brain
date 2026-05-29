@@ -713,12 +713,15 @@ export default function App() {
     );
   }
 
-  if (!user) {
-    return <AuthPage />;
+  if (showLandingPage) {
+    return <LandingPage onEnter={async () => {
+      await signOut();
+      setShowLandingPage(false);
+    }} />;
   }
 
-  if (showLandingPage) {
-    return <LandingPage onEnter={() => setShowLandingPage(false)} />;
+  if (!user) {
+    return <AuthPage />;
   }
 
   if (loading || !storeState) {
