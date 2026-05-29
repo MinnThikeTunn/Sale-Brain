@@ -216,7 +216,7 @@ export function ShopChatbot({
         console.error("[Chatbot] ERROR: VITE_GEMINI_API_KEY is missing or invalid.");
         setMessages((current) => [
           ...current,
-          { role: "assistant", content: "Configuration Error: API Key is missing. Please check Vercel settings." },
+          { role: "assistant", content: "Configuration Error: API Key is missing. Please check Vercel settings and REDEPLOY." },
         ]);
         setLoading(false);
         return;
@@ -250,34 +250,38 @@ export function ShopChatbot({
       Customer asked: ${trimmed}
       Candy's reply:`;
 
-      const result = await model.generateContent(systemPrompt);
-      const botText = result.response.text();
+      try {
+        console.log("[Chatbot] Sending request to Gemini...");
+        const result = await model.generateContent(systemPrompt);
+        const botText = result.response.text();
+        
+        if (!botText) throw new Error("Empty response from Gemini");
 
-      if (!botText) throw new Error("Empty response from Gemini");
-
-      // NEW: Parse Actions from AI response
-      const actionMatch = botText.match(/\[ACTION:(.+?)\]/);
-      if (actionMatch) {
-        const actionStr = actionMatch[1];
-        if (actionStr.startsWith("ADD, ID:")) {
-          const prodId = actionStr.split("ID:")[1].trim();
-          setCart(curr => {
-            const existing = curr.find(c => c.productId === prodId);
-            if (existing) return curr.map(c => c.productId === prodId ? { ...c, quantity: c.quantity + 1 } : c);
-            return [...curr, { productId: prodId, quantity: 1 }];
-          });
-        } else if (actionStr === "CHECKOUT") {
-          setCurrentStep("checkout");
+        // ... Parse actions logic ...
+        const actionMatch = botText.match(/\[ACTION:(.+?)\]/);
+        if (actionMatch) {
+          const actionStr = actionMatch[1];
+          if (actionStr.startsWith("ADD, ID:")) {
+            const prodId = actionStr.split("ID:")[1].trim();
+            setCart(curr => {
+              const existing = curr.find(c => c.productId === prodId);
+              if (existing) return curr.map(c => c.productId === prodId ? { ...c, quantity: c.quantity + 1 } : c);
+              return [...curr, { productId: prodId, quantity: 1 }];
+            });
+          } else if (actionStr === "CHECKOUT") {
+            setCurrentStep("checkout");
+          }
         }
+
+        const cleanText = botText.replace(/\[ACTION:.+?\]/g, "").trim();
+        setMessages((current) => [...current, { role: "assistant", content: cleanText }]);
+      } catch (innerErr: any) {
+        console.error("[Chatbot Gemini Call Error]", innerErr);
+        let msg = "AI Error: ";
+        if (innerErr.message?.includes("fetch")) msg += "Network blocked. Check VPN.";
+        else msg += (innerErr.message || "Unknown error");
+        setMessages((current) => [...current, { role: "assistant", content: msg }]);
       }
-
-      // Clean the text from tags before showing to user
-      const cleanText = botText.replace(/\[ACTION:.+?\]/g, "").trim();
-
-      setMessages((current) => [
-        ...current,
-        { role: "assistant", content: cleanText },
-      ]);
     } catch (err: any) {
       console.error("[Chatbot Fatal Error]", err);
       setMessages((current) => [
