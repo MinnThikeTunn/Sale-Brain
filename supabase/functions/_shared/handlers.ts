@@ -1,0 +1,339 @@
+import { createDefaultState } from "./defaults.ts";
+import type { ChatMessage, Order, SystemState } from "./types.ts";
+import type { ShopContext } from "./context.ts";
+import { processCustomerMessage } from "./botEngine.ts";
+import { getTelegramChatId, registerTelegramWebhook } from "./telegram.ts";
+
+const strategyCache: Record<string, { text: string; at: number }> = {};
+const STRATEGY_TTL = 15 * 60 * 1000;
+
+export async function handleAction(
+  ctx: ShopContext,
+  action: string,
+  body: Record<string, unknown>,
+  query: URLSearchParams
+): Promise<unknown> {
+  switch (action) {
+    case "onboarding":
+      return handleOnboarding(ctx, body);
+    case "reset":
+      return handleReset(ctx);
+    case "orders/update":
+      return handleOrderUpdate(ctx, body);
+    case "bot/takeover":
+      return handleBotTakeover(ctx, body);
+    case "bot/release":
+      return handleBotRelease(ctx, body);
+    case "bot/owner-reply":
+      return handleOwnerReply(ctx, body);
+    case "bot/simulate-input":
+      return processCustomerMessage(ctx, String(body.sessionId || "default_customer"), body as never);
+    case "ai/strategy":
+      return handleAiStrategy(ctx, body, query);
+    case "ai/marketing/insights":
+      return handleMarketingInsights(ctx, body);
+    case "ai/marketing/image":
+      return handleMarketingImage(ctx, body);
+    case "messenger/status":
+      return handleMessengerStatus();
+    default:
+      return { error: `Unknown action: ${action}` };
+  }
+}
+
+async function handleOnboarding(ctx: ShopContext, body: Record<string, unknown>) {
+  const b = body as Record<string, string | boolean | undefined>;
+  ctx.state.config = {
+    shopName: String(b.shopName || "SME Store"),
+    ownerName: String(b.ownerName || "Owner"),
+    phone: String(b.phone || ""),
+    currency: "MMK",
+    telegramBotToken: String(b.telegramBotToken || ""),
+    telegramBotUsername: String(b.telegramBotUsername || ""),
+    messengerPageAccessToken: String(b.messengerPageAccessToken || ""),
+    messengerVerifyToken: String(b.messengerVerifyToken || ""),
+    messengerBotId: String(b.messengerBotId || "messenger"),
+    messengerBotName: String(b.messengerBotName || "Messenger Bot"),
+    onboardingCompleted: b.onboardingCompleted !== undefined ? Boolean(b.onboardingCompleted) : true,
+  };
+  await ctx.save();
+  if (ctx.state.config.telegramBotToken) {
+    await registerTelegramWebhook(ctx.userId, ctx.state.config.telegramBotToken);
+  }
+  return { success: true, config: ctx.state.config };
+}
+
+async function handleReset(ctx: ShopContext) {
+  ctx.state = createDefaultState();
+  await ctx.save();
+  return { message: "Store reset to defaults", state: ctx.state };
+}
+
+async function handleOrderUpdate(ctx: ShopContext, body: Record<string, unknown>) {
+  const orderId = String(body.orderId || "");
+  const status = body.status as Order["status"];
+  const order = ctx.state.orders.find((o) => o.id === orderId);
+  if (!order) return { error: "Order not found" };
+
+  order.status = status;
+  if (status === "confirmed") {
+    order.items.forEach((item) => {
+      const prod = ctx.state.products.find((p) => p.id === item.productId);
+      if (prod) prod.stock = Math.max(0, prod.stock - item.quantity);
+    });
+  }
+
+  const relatedSession = Object.values(ctx.state.sessions).find((s) => s.activeOrderId === orderId);
+  if (relatedSession) {
+    let text = "";
+    if (status === "confirmed") {
+      text = `Order Confirmed! Invoice ${order.invoiceId} — ${order.totalAmount.toLocaleString()} MMK`;
+      relatedSession.messages.push({
+        id: `ms-conf-${Date.now()}`,
+        sender: "bot",
+        content: text,
+        timestamp: new Date().toISOString(),
+        invoiceData: order,
+      });
+      relatedSession.currentStep = "completed";
+    } else if (status === "cancelled") {
+      text = "Order Cancelled. Please contact the shop if you have questions.";
+      relatedSession.messages.push({
+        id: `ms-canc-${Date.now()}`,
+        sender: "bot",
+        content: text,
+        timestamp: new Date().toISOString(),
+      });
+    }
+    const tgChatId = getTelegramChatId(relatedSession.sessionId);
+    if (tgChatId && text) await ctx.sendTelegram(tgChatId, text);
+  }
+
+  await ctx.save();
+  return { success: true, orders: ctx.state.orders, products: ctx.state.products };
+}
+
+async function handleBotTakeover(ctx: ShopContext, body: Record<string, unknown>) {
+  const sessionId = String(body.sessionId || "");
+  const session = ctx.state.sessions[sessionId];
+  if (session) {
+    session.liveTakeoverActive = true;
+    session.currentStep = "live_takeover";
+    session.messages.push({
+      id: `m-tk-${Date.now()}`,
+      sender: "system",
+      content: "Shop Owner has joined the chat. AI deactivated.",
+      timestamp: new Date().toISOString(),
+    });
+    await ctx.save();
+  }
+  return { success: true, session };
+}
+
+async function handleBotRelease(ctx: ShopContext, body: Record<string, unknown>) {
+  const sessionId = String(body.sessionId || "");
+  const session = ctx.state.sessions[sessionId];
+  if (session) {
+    session.liveTakeoverActive = false;
+    session.currentStep = "browsing";
+    session.messages.push({
+      id: `m-rl-${Date.now()}`,
+      sender: "system",
+      content: "Shop Owner left. Candy AI is back online.",
+      timestamp: new Date().toISOString(),
+    });
+    await ctx.save();
+  }
+  return { success: true, session };
+}
+
+async function handleOwnerReply(ctx: ShopContext, body: Record<string, unknown>) {
+  const sessionId = String(body.sessionId || "");
+  const content = String(body.content || "");
+  const session = ctx.state.sessions[sessionId];
+  if (!session) return { error: "Session missing" };
+
+  const ownerMsg: ChatMessage = {
+    id: `mo-${Date.now()}`,
+    sender: "owner",
+    content,
+    timestamp: new Date().toISOString(),
+  };
+  session.messages.push(ownerMsg);
+  session.lastActive = new Date().toISOString();
+  await ctx.save();
+
+  const tgChatId = getTelegramChatId(sessionId);
+  if (tgChatId) {
+    await ctx.sendTelegram(tgChatId, `Message from Shop Owner:\n\n${content}`);
+  }
+  return { success: true, session };
+}
+
+async function handleAiStrategy(ctx: ShopContext, body: Record<string, unknown>, query: URLSearchParams) {
+  const force = query.get("force") === "true" || body.force === true;
+  const lang = String(query.get("lang") || body.lang || "en");
+  const cacheKey = `${ctx.userId}:${lang}`;
+  const now = Date.now();
+
+  if (!force && strategyCache[cacheKey] && now - strategyCache[cacheKey].at < STRATEGY_TTL) {
+    return { success: true, strategy: strategyCache[cacheKey].text };
+  }
+
+  try {
+    const ai = ctx.getGemini();
+    let totalRevenue = 0;
+    const itemsPurchasedCount: Record<string, number> = {};
+    ctx.state.orders.forEach((o) => {
+      if (o.status !== "cancelled") {
+        totalRevenue += o.totalAmount - o.deliveryFee;
+        o.items.forEach((i) => {
+          itemsPurchasedCount[i.productName] = (itemsPurchasedCount[i.productName] || 0) + i.quantity;
+        });
+      }
+    });
+
+    const aiRes = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `Generate SME strategy for:\n${JSON.stringify({
+        revenue: totalRevenue,
+        orders: ctx.state.orders.length,
+        items: itemsPurchasedCount,
+        products: ctx.state.products.map((p) => ({ name: p.name, stock: p.stock })),
+      })}`,
+      config: {
+        systemInstruction: `You are Sales Brain advisor. Write plain text in ${lang === "my" ? "Burmese" : "English"}. No markdown hashes or asterisks. Under 280 words.`,
+        temperature: 0.3,
+      },
+    });
+
+    const strategyText = aiRes.text || "Unable to generate strategy.";
+    strategyCache[cacheKey] = { text: strategyText, at: now };
+    return { success: true, strategy: strategyText };
+  } catch {
+    const fallback =
+      lang === "my"
+        ? "စနစ်အတွင်းရှိ အချက်အလက်များအရ အရောင်းမြှင့်တင်ရန် ဆောင်ရွက်နိုင်ပါသည်။"
+        : "Peak sales often occur 6-9 PM. Promote bundles and prepayment for faster checkout.";
+    strategyCache[cacheKey] = { text: fallback, at: now };
+    return { success: true, strategy: fallback };
+  }
+}
+
+async function handleMarketingInsights(ctx: ShopContext, body: Record<string, unknown>) {
+  const campaignType = String(body.campaignType || "General");
+  const productIds = (body.productIds as string[]) || [];
+  const selected = ctx.state.products.filter(
+    (p) => !productIds.length || productIds.includes(p.id)
+  );
+  const primary = selected[0] || ctx.state.products[0];
+
+  try {
+    const ai = ctx.getGemini();
+    const prompt = `Campaign: ${campaignType}. Products: ${selected.map((p) => p.name).join(", ")}. Return JSON with trendingProducts, recommendations, copywriting, bannerPrompt.`;
+    const aiRes = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: prompt,
+      config: { temperature: 0.4, responseMimeType: "application/json" },
+    });
+    const insights = JSON.parse(aiRes.text?.trim() || "{}");
+    return { success: true, insights };
+  } catch {
+    return {
+      success: true,
+      insights: {
+        trendingProducts: selected.slice(0, 2).map((p) => p.name),
+        underperformingProducts: [],
+        lowStockAlerts: ctx.state.products.filter((p) => p.stock < 10).map((p) => `${p.name}: ${p.stock} left`),
+        analyticsSummary: {
+          salesGrowthEstimate: "+20%",
+          engagementLevel: "Moderate",
+          bestSellingCategory: primary?.category || "General",
+        },
+        recommendations: [
+          {
+            campaignTitle: `${campaignType} Campaign`,
+            rationale: `Promote ${primary?.name || "your catalog"}`,
+            targetAudience: "Myanmar SME shoppers",
+            discountPercentage: "10% OFF",
+            duration: "7 Days",
+            expectedImpact: "Higher weekend conversions",
+            implementationSteps: ["Post on Facebook", "Enable KPay prepay", "Bundle top products"],
+          },
+        ],
+        copywriting: {
+          facebookCaption: {
+            en: `Special ${campaignType} offer on ${primary?.name || "our products"}!`,
+            my: `${campaignType} အထူးပရိုမိုးရှင်း — ${primary?.name || "ကုန်ပစ္စည်း"}!`,
+          },
+          instagramCaption: { en: "Order now!", my: "ယခုမှာယူပါ!" },
+          adCopy: { en: "Limited time deal", my: "အချိန်ကန့်သတ်အပ提议" },
+          email: { en: "Dear customer...", my: "ချစ်ခင်ရသော ဆိုင်ဝယ်သူ..." },
+          hashtags: `#${campaignType} #MyanmarSME`,
+        },
+        bannerPrompt: `Marketing poster for ${primary?.name || "Myanmar products"}, ${campaignType} theme, 3:4 portrait`,
+      },
+    };
+  }
+}
+
+async function handleMarketingImage(ctx: ShopContext, body: Record<string, unknown>) {
+  const prompt = String(body.prompt || "");
+  if (!prompt) return { success: false, error: "Prompt is required" };
+
+  try {
+    const ai = ctx.getGemini();
+    const productId = String(body.productId || "");
+    const product = ctx.state.products.find((p) => p.id === productId);
+    const parts: unknown[] = [{ text: prompt }];
+    if (product?.image) {
+      try {
+        const res = await fetch(product.image);
+        if (res.ok) {
+          const buf = await res.arrayBuffer();
+          const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+          parts.unshift({
+            inlineData: {
+              mimeType: res.headers.get("content-type") || "image/jpeg",
+              data: b64,
+            },
+          });
+        }
+      } catch {
+        /* optional reference image */
+      }
+    }
+
+    const aiRes = await ai.models.generateContent({
+      model: "gemini-2.0-flash-preview-image-generation",
+      contents: [{ role: "user", parts }],
+      config: { responseModalities: ["TEXT", "IMAGE"] },
+    });
+
+    const candidates = aiRes.candidates || [];
+    for (const c of candidates) {
+      for (const part of c.content?.parts || []) {
+        if (part.inlineData?.data) {
+          return {
+            success: true,
+            imageUrl: `data:${part.inlineData.mimeType || "image/png"};base64,${part.inlineData.data}`,
+          };
+        }
+      }
+    }
+    return { success: false, error: "No image generated" };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
+async function handleMessengerStatus() {
+  const base = Deno.env.get("OMNICHANNEL_URL") || "http://localhost:8000";
+  try {
+    const res = await fetch(`${base}/messenger/status`);
+    if (res.ok) return await res.json();
+    return { connected: false, pages: [] };
+  } catch {
+    return { connected: false, pages: [] };
+  }
+}

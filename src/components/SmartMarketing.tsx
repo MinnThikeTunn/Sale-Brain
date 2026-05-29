@@ -320,17 +320,13 @@ export function SmartMarketing({ state, lang = "en" }: SmartMarketingProps) {
   const fetchMarketingInsights = async (campaign: string) => {
     setLoading(true);
     try {
-      const response = await fetch("/api/ai/marketing/insights", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          campaignType: campaign,
-          productIds: selectedProductIds
-        }),
-      });
-      const data = await response.json();
+      const { invokeApi } = await import("../services/api");
+      const data = await invokeApi<{ success: boolean; insights: Record<string, unknown> }>(
+        "ai/marketing/insights",
+        { campaignType: campaign, productIds: selectedProductIds }
+      );
       if (data.success && data.insights) {
-        setInsights(data.insights);
+        setInsights(data.insights as unknown as MarketingInsights);
         // Prepopulate text poster configurations based on AI descriptions
         const rec = data.insights.recommendations[0];
         if (rec) {
@@ -391,17 +387,16 @@ export function SmartMarketing({ state, lang = "en" }: SmartMarketingProps) {
     setAiImageLoading(true);
     setAiImageError(null);
     try {
-      const response = await fetch("/api/ai/marketing/image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+      const { invokeApi } = await import("../services/api");
+      const data = await invokeApi<{ success: boolean; imageUrl?: string; error?: string }>(
+        "ai/marketing/image",
+        {
           prompt: insights.bannerPrompt,
           campaignType: selectedPreset,
           productId: selectedProduct,
-          aspectRatio: aspectRatio
-        }),
-      });
-      const data = await response.json();
+          aspectRatio: aspectRatio,
+        }
+      );
       if (data.success && data.imageUrl) {
         setAiImage(data.imageUrl);
       } else {

@@ -57,19 +57,15 @@ export function TelegramSimulator({
 
     setLoading(true);
     try {
-      const response = await fetch("/api/bot/simulate-input", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: session.sessionId,
-          content: textToSend,
-          base64Image: finalImage || undefined,
-          transactionId: txIdInput || undefined,
-          payMethod: selectedPayMethod
-        })
+      const { invokeApi } = await import("../services/api");
+      await invokeApi("bot/simulate-input", {
+        sessionId: session.sessionId,
+        content: textToSend,
+        base64Image: finalImage || undefined,
+        transactionId: txIdInput || undefined,
+        payMethod: selectedPayMethod,
       });
-
-      if (response.ok) {
+      {
         setInputText("");
         setTxIdInput("");
         setMockScreenshotBase64(null);
@@ -86,18 +82,13 @@ export function TelegramSimulator({
   const handleCheckoutPath = async (option: "prepay" | "cod") => {
     setLoading(true);
     try {
-      const response = await fetch("/api/bot/simulate-input", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: session.sessionId,
-          checkoutOption: option,
-          payMethod: option === 'prepay' ? 'KPay' : 'CoD'
-        })
+      const { invokeApi } = await import("../services/api");
+      await invokeApi("bot/simulate-input", {
+        sessionId: session.sessionId,
+        checkoutOption: option,
+        payMethod: option === "prepay" ? "KPay" : "CoD",
       });
-      if (response.ok) {
-        onStateUpdated();
-      }
+      onStateUpdated();
     } catch (err) {
       console.error(err);
     } finally {
@@ -108,18 +99,13 @@ export function TelegramSimulator({
   const handleTownshipSelection = async (town: string, payMethodSelected: 'cod' | 'prepay') => {
     setLoading(true);
     try {
-      const response = await fetch("/api/bot/simulate-input", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: session.sessionId,
-          township: town,
-          payMethod: payMethodSelected
-        })
+      const { invokeApi } = await import("../services/api");
+      await invokeApi("bot/simulate-input", {
+        sessionId: session.sessionId,
+        township: town,
+        payMethod: payMethodSelected,
       });
-      if (response.ok) {
-        onStateUpdated();
-      }
+      onStateUpdated();
     } catch (err) {
       console.error(err);
     } finally {

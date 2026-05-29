@@ -25,10 +25,10 @@ Built for Myanmar businesses, featuring:
 | Layer | Technology |
 |-------|------------|
 | **Frontend** | React 19, TypeScript, Vite, Tailwind CSS 4, Motion, Lucide React |
-| **Backend** | Express.js (embedded in `server.ts`) |
-| **Database** | File-based JSON (`sales_brain_state.json`) |
-| **Future DB** | Supabase (client ready) |
-| **AI** | Google Gemini API (`@google/genai`) |
+| **Backend** | Supabase Edge Functions (`api`, `telegram-webhook`) |
+| **Auth** | Supabase Auth (email/password) |
+| **Database** | Supabase Storage (`shop-states/{userId}/state.json`) |
+| **AI** | Google Gemini API (Edge Function secret) |
 
 ---
 
@@ -48,7 +48,7 @@ Built for Myanmar businesses, featuring:
 
 ```
 sales-brain-ai/
-├── server.ts                     # Express backend + Vite SSR server
+├── supabase/                     # Migrations + Edge Functions
 ├── src/
 │   ├── App.tsx                   # Main React application
 │   ├── main.tsx                   # React DOM renderer
@@ -59,12 +59,13 @@ sales-brain-ai/
 │   │   ├── SmartMarketing.tsx     # AI marketing campaigns
 │   │   ├── TelegramSimulator.tsx  # Telegram UI simulator
 │   │   └── CustomChart.tsx        # Data visualization
-│   └── utils/
-│       └── supabase.ts            # Supabase client (future)
+│   ├── contexts/AuthContext.tsx
+│   ├── services/                  # shopState + api invoke
+│   └── utils/supabase.ts
 ├── architecture-design/
 │   └── architecture.md            # System architecture docs
 ├── decision-log/                  # Architectural Decision Records
-├── sales_brain_state.json         # Persistent state file
+├── sales_brain_state.json         # Legacy demo state (optional seed)
 ├── package.json                   # Dependencies
 ├── vite.config.ts                 # Vite configuration
 └── tsconfig.json                  # TypeScript configuration
@@ -95,25 +96,23 @@ cp .env.local .env
 
 ### Configuration
 
-Edit `.env` and add your Gemini API key:
+Edit `.env` (see `.env.example`):
 
 ```env
-GEMINI_API_KEY=your_gemini_api_key_here
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-key
 ```
 
-Get your API key from [Google AI Studio](https://ai.studio.google.com/app/apikey).
+Set Edge secrets in Supabase: `GEMINI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+
+Apply migration: `supabase db push`. Deploy functions: `supabase functions deploy api` and `telegram-webhook`.
 
 ### Running the Application
 
 ```bash
-# Development mode (Express + Vite hot reload)
-npm run dev
-
-# Production build
+npm run dev          # Vite SPA on :3000
 npm run build
-npm run start
-
-# Type checking
+npm run preview
 npm run lint
 ```
 
