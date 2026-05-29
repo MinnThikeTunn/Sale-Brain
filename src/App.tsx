@@ -32,6 +32,7 @@ import { CustomChart } from "./components/CustomChart";
 import { TelegramSimulator } from "./components/TelegramSimulator";
 import { SmartMarketing } from "./components/SmartMarketing";
 import { Onboarding } from "./components/Onboarding";
+import { LandingPage } from "./components/LandingPage";
 import { Product, DeliveryZone, Order, ShopConfig, TelegramSession, SystemState } from "./types";
 
 // Complete localized dictionary for total English & Burmese translation sync
@@ -290,6 +291,7 @@ const dict = {
 
 export default function App() {
   const [lang, setLang] = useState<"en" | "my">("en");
+  const [showLandingPage, setShowLandingPage] = useState<boolean>(true);
   const [showSimulator, setShowSimulator] = useState<boolean>(false);
   const [botConnectionTab, setBotConnectionTab] = useState<"telegram" | "messenger">("telegram");
 
@@ -722,6 +724,10 @@ export default function App() {
       "success"
     );
   };
+
+  if (showLandingPage) {
+    return <LandingPage onEnter={() => setShowLandingPage(false)} />;
+  }
 
   if (loading || !storeState) {
     return (
