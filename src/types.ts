@@ -67,6 +67,17 @@ export interface ShopConfig {
   onboardingCompleted: boolean;
 }
 
+export interface BusinessOnboarding {
+  business_name: string;
+  business_category: string;
+  selling_platform: string;
+  weekly_order_volume: string;
+  payment_method: string;
+  delivery_method: string;
+  business_goal: string;
+  bot_personality: string;
+}
+
 export interface TelegramSession {
   sessionId: string;
   customerName: string;

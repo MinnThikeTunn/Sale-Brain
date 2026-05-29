@@ -6,7 +6,11 @@
     "currency": "MMK",
     "telegramBotToken": "8856028700:AAF3vPQFbfjyi2efY2fHK3EpDeST6mGnwAE",
     "telegramBotUsername": "ShwePathein_Sale_bot",
-    "onboardingCompleted": true
+    "messengerPageAccessToken": "",
+    "messengerVerifyToken": "",
+    "messengerBotId": "messenger",
+    "messengerBotName": "Messenger Bot",
+    "onboardingCompleted": false
   },
   "products": [
     {

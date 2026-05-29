@@ -32,7 +32,7 @@ import { CustomChart } from "./components/CustomChart";
 import { TelegramSimulator } from "./components/TelegramSimulator";
 import { SmartMarketing } from "./components/SmartMarketing";
 import { Onboarding } from "./components/Onboarding";
-import { Product, DeliveryZone, Order, ShopConfig, TelegramSession, SystemState } from "./types";
+import { Product, DeliveryZone, Order, ShopConfig, TelegramSession, SystemState, BusinessOnboarding } from "./types";
 
 // Complete localized dictionary for total English & Burmese translation sync
 const dict = {
