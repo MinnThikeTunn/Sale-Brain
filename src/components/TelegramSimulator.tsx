@@ -4,7 +4,7 @@ import { TelegramSession, Product, DeliveryZone, Order } from "../types";
 import { botSimulateInput } from "../services/clientStore";
 
 interface TelegramSimulatorProps {
-  session: TelegramSession;
+  session: TelegramSession | undefined;
   products: Product[];
   deliveryZones: DeliveryZone[];
   onStateUpdated: () => void;
@@ -32,10 +32,10 @@ export function TelegramSimulator({
 
   // Auto-scroll chat to latest messages
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && session) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [session.messages]);
+  }, [session?.messages]);
 
   // Quick action suggested inputs
   const suggestions = [
@@ -52,6 +52,7 @@ export function TelegramSimulator({
   ];
 
   const handleSendMessage = async (customText?: string) => {
+    if (!session) return;
     const textToSend = customText || inputText;
     const finalImage = customAttachBase64 || mockScreenshotBase64;
     if (!textToSend.trim() && !finalImage) return;
@@ -78,6 +79,7 @@ export function TelegramSimulator({
   };
 
   const handleCheckoutPath = async (option: "prepay" | "cod") => {
+    if (!session) return;
     setLoading(true);
     try {
       botSimulateInput({
@@ -94,6 +96,7 @@ export function TelegramSimulator({
   };
 
   const handleTownshipSelection = async (town: string, payMethodSelected: 'cod' | 'prepay') => {
+    if (!session) return;
     setLoading(true);
     try {
       botSimulateInput({
@@ -121,14 +124,26 @@ export function TelegramSimulator({
   return (
     <div className="w-full max-w-sm mx-auto flex flex-col h-[670px] bg-slate-950 border-4 border-slate-800 rounded-[38px] shadow-2xl relative overflow-hidden ring-4 ring-slate-900/40">
       
-      {/* Phone Notch/Speaker Header */}
-      <div className="absolute top-0 inset-x-0 h-6 bg-slate-950 flex items-center justify-center z-40">
-        <div className="w-24 h-4 bg-slate-900 rounded-b-xl flex items-center justify-between px-3">
-          <div className="w-2 h-2 rounded-full bg-slate-800"></div>
-          <div className="w-10 h-1 bg-slate-950 rounded-full"></div>
-          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500/80"></div>
+      {!session ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center text-2xl">💤</div>
+          <div className="space-y-2">
+            <h3 className="text-sm font-bold text-slate-200">No Active Sessions</h3>
+            <p className="text-[10px] text-slate-500 leading-relaxed">
+              When a customer messages your bot on Telegram, their chat will appear here for you to simulate and monitor.
+            </p>
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Phone Notch/Speaker Header */}
+          <div className="absolute top-0 inset-x-0 h-6 bg-slate-950 flex items-center justify-center z-40">
+            <div className="w-24 h-4 bg-slate-900 rounded-b-xl flex items-center justify-between px-3">
+              <div className="w-2 h-2 rounded-full bg-slate-800"></div>
+              <div className="w-10 h-1 bg-slate-950 rounded-full"></div>
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500/80"></div>
+            </div>
+          </div>
 
       {/* Telegram Status Bar */}
       <div className="pt-6 px-5 pb-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-[11px] text-slate-400 font-mono z-30">
@@ -524,7 +539,7 @@ export function TelegramSimulator({
 
         <input
           type="text"
-          placeholder={session.liveTakeoverActive ? "Direct message as Customer..." : "Type custom inquiries in Burmese/English..."}
+          placeholder={session?.liveTakeoverActive ? "Direct message as Customer..." : "Type custom inquiries in Burmese/English..."}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={(e) => {
@@ -540,6 +555,8 @@ export function TelegramSimulator({
           <Send size={12} />
         </button>
       </div>
+    </>
+    )}
 
     </div>
   );

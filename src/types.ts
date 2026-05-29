@@ -77,6 +77,22 @@ export interface TelegramSession {
   tempPayMethod?: string;
 }
 
+export interface BusinessOnboarding {
+  onboarding_id?: number;
+  user_id: string;
+  business_name: string;
+  business_category: string;
+  selling_platform: string;
+  weekly_order_volume: string;
+  payment_method: string;
+  delivery_method: string;
+  business_goal: string;
+  bot_personality: string;
+  onboarding_completed: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface SystemState {
   config: ShopConfig;
   products: Product[];

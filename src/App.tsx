@@ -39,6 +39,7 @@ import { invokeApi } from "./services/api";
 import { getShopState, saveShopState } from "./services/shopState";
 import { Product, DeliveryZone, Order, ShopConfig, TelegramSession, SystemState } from "./types";
 import * as store from "./services/clientStore";
+import { supabase } from "./utils/supabase";
 
 // Complete localized dictionary for total English & Burmese translation sync
 const dict = {
@@ -311,6 +312,11 @@ export default function App() {
   const [botConnectionTab, setBotConnectionTab] = useState<"messenger" | "telegram">("messenger");
   const [activeSessionId, setActiveSessionId] = useState<string>("default_customer");
 
+  // Onboarding / Config Draft state
+  const [configDraft, setConfigDraft] = useState<ShopConfig | null>(null);
+  const [messengerStatus, setMessengerStatus] = useState<{ connected: boolean; pages: any[] } | null>(null);
+  const [loadingMessengerStatus, setLoadingMessengerStatus] = useState<boolean>(false);
+
   // Loaders
   const [loading, setLoading] = useState<boolean>(true);
   const [savingAction, setSavingAction] = useState<boolean>(false);
@@ -348,8 +354,34 @@ export default function App() {
     if (!user) return;
     if (!silent) setLoading(true);
     try {
+      // 1. Fetch JSON state from storage
       const data = await getShopState(user.id);
+      
+      // 2. Fetch onboarding data from DB (Source of Truth for completion)
+      // Use ordering by onboarding_id desc to get the most recent record if duplicates exist
+      const { data: onboardingData, error: dbError } = await supabase
+        .from('business_onboarding')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('onboarding_id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (dbError) {
+        console.warn("Database fetch error:", dbError);
+      }
+
+      if (onboardingData) {
+        // Sync completion status and business name from DB to the state object
+        data.config.onboardingCompleted = onboardingData.onboarding_completed;
+        if (onboardingData.business_name) {
+          data.config.shopName = onboardingData.business_name;
+        }
+      }
+
+      // 3. Update states ONLY after all sync logic is done
       setStoreState(data);
+
       setConfigDraft((prev) => {
         if (activeTab === "bot_config" && prev) return prev;
         return data.config;
@@ -760,22 +792,34 @@ export default function App() {
 
           // Persist settings to backing JSON state
           try {
+            // First, trigger backend onboarding (updates JSON + sets up Telegram)
             await invokeApi("onboarding", {
               ...storeState.config,
               shopName: profile.shopName,
               ownerName: profile.ownerName,
               onboardingCompleted: true,
             });
-            await persistState(updatedState);
+            
+            // Second, save full state to storage
+            await saveShopState(user.id, updatedState);
+            
+            // Third, update local state
+            setStoreState(updatedState);
+            setAiAnalysisText(aiSummary);
+
             showToast(
               lang === "my"
                 ? "အချက်အလက် စနစ်သိမ်းဆည်းအောင်မြင်ပြီး လုပ်ငန်းဒိုင်ယာလော့ခ် ဖွင့်လှစ်ပါပြီ။ 🟢"
                 : "Setup Completed! Welcome to your SME dashboard dashboard. 🟢",
               "success"
             );
-            fetchState();
+            
+            // Finally, refresh state to ensure everything is in sync
+            await fetchState(true);
           } catch (err) {
             console.error("[App] Saving onboarding stats failed", err);
+            // Fallback: still set local state to allow entry if only persistence failed
+            setStoreState(updatedState);
           }
         }}
       />
@@ -806,7 +850,7 @@ export default function App() {
     { label: "Sun", value: totalSalesRevenue || 120000 }
   ];
 
-  const activeSession: TelegramSession = storeState.sessions[activeSessionId] || Object.values(storeState.sessions)[0];
+  const activeSession: TelegramSession | undefined = storeState.sessions[activeSessionId] || Object.values(storeState.sessions)[0];
 
   return (
     <div className="min-h-screen bg-[#f0f9ff] text-slate-900 font-sans flex flex-col selection:bg-sky-500 selection:text-white pb-12 relative overflow-hidden">
@@ -849,22 +893,37 @@ export default function App() {
           {/* Edit Business Profile / Onboarding Configuration Desk */}
           <button
             onClick={async () => {
-              // Update local state is instantaneous
-              setStoreState((prev) => ({
+              const confirmMsg = lang === "my" 
+                ? "လုပ်ငန်းအချက်အလက်များကို ပြန်လည်ပြင်ဆင်လိုပါသလား?" 
+                : "Would you like to edit your business profile details?";
+              
+              if (!window.confirm(confirmMsg)) return;
+
+              // 1. Update local state immediately
+              setStoreState((prev) => prev ? ({
                 ...prev,
                 config: {
                   ...prev.config,
                   onboardingCompleted: false
                 }
-              }));
-              // Synchronously tell backend to set onboardingCompleted to false so poller doesn't override
+              }) : null);
+
+              // 2. Update PostgreSQL (Source of Truth)
               try {
+                await supabase
+                  .from('business_onboarding')
+                  .update({ onboarding_completed: false })
+                  .eq('user_id', user.id);
+                
+                // 3. Update JSON storage
                 await invokeApi("onboarding", {
                   ...storeState.config,
                   onboardingCompleted: false,
                 });
+
+                showToast(lang === "my" ? "ပြင်ဆင်ရန် အဆင်သင့်ဖြစ်ပါပြီ။" : "Ready to edit profile.", "info");
               } catch (e) {
-                console.warn("Could not save onboarding state:", e);
+                console.warn("Could not sync onboarding reset:", e);
               }
             }}
             className="flex items-center gap-1.5 text-[9px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 p-1.5 px-3 rounded-lg border border-indigo-200 transition-colors cursor-pointer"
