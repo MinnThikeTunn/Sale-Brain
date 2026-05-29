@@ -74,12 +74,25 @@ export function ShopChatbot({
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [language, setLanguage] = useState<Language>("en");
   const [composerExpanded, setComposerExpanded] = useState(false);
+  
+  // NEW: Local Chat State (Mimicking the backend agent)
+  const [cart, setCart] = useState<{ productId: string; quantity: number }[]>([]);
+  const [currentStep, setCurrentStep] = useState<string>("greeting");
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
   const hasStarted = messages.length > 0;
   const copy = language === "en" ? ENGLISH_COPY : MYANMAR_COPY;
 
   const featuredProducts = useMemo(() => products.slice(0, 8), [products]);
+
+  // NEW: Calculate Total
+  const cartTotal = useMemo(() => {
+    return cart.reduce((sum, item) => {
+      const p = products.find(prod => prod.id === item.productId);
+      return sum + (p ? p.price * item.quantity : 0);
+    }, 0);
+  }, [cart, products]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -211,19 +224,57 @@ export function ShopChatbot({
       const genAI = new GoogleGenAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       
-      const systemPrompt = `You are "Candy", a sweet and professional AI assistant for the shop "${businessName}". 
-      You speak a mix of Myanmar (Burmese) and English. 
+      // Build a mini-knowledge base from the products prop
+      const productContext = products && products.length > 0 
+        ? `Here are our products:\n${products.map(p => `- ${p.name} (ID: ${p.id}): ${p.price} MMK (${p.stock} left). ${p.description}`).join("\n")}`
+        : "We are currently updating our product catalog.";
+
+      const systemPrompt = `You are "Candy", a sweet, charming, and professional AI assistant for the shop "${businessName}". 
+      You speak a mix of Myanmar (Burmese) and English (soft and polite).
+      
+      SHOP CONTEXT:
+      ${productContext}
+      
+      CUSTOMER STATE:
+      - Current Cart: ${JSON.stringify(cart)}
+      - Current Total: ${cartTotal} MMK
+      - Step: ${currentStep}
+      
+      INSTRUCTIONS:
+      1. If the customer wants to buy/add a product, reply with your charming text AND include a special tag: [ACTION:ADD, ID:product_id]. 
+      2. If they ask about total/checkout, reply with the total AND tag: [ACTION:CHECKOUT].
+      3. Be extremely polite (use particles like "shin"). Keep replies concise.
+      
       Customer asked: ${trimmed}
-      Reply charmingly and helpfully. Keep it short.`;
+      Candy's reply:`;
 
       const result = await model.generateContent(systemPrompt);
       const botText = result.response.text();
 
       if (!botText) throw new Error("Empty response from Gemini");
 
+      // NEW: Parse Actions from AI response
+      const actionMatch = botText.match(/\[ACTION:(.+?)\]/);
+      if (actionMatch) {
+        const actionStr = actionMatch[1];
+        if (actionStr.startsWith("ADD, ID:")) {
+          const prodId = actionStr.split("ID:")[1].trim();
+          setCart(curr => {
+            const existing = curr.find(c => c.productId === prodId);
+            if (existing) return curr.map(c => c.productId === prodId ? { ...c, quantity: c.quantity + 1 } : c);
+            return [...curr, { productId: prodId, quantity: 1 }];
+          });
+        } else if (actionStr === "CHECKOUT") {
+          setCurrentStep("checkout");
+        }
+      }
+
+      // Clean the text from tags before showing to user
+      const cleanText = botText.replace(/\[ACTION:.+?\]/g, "").trim();
+
       setMessages((current) => [
         ...current,
-        { role: "assistant", content: botText },
+        { role: "assistant", content: cleanText },
       ]);
     } catch (err: any) {
       console.error("[Chatbot Fatal Error]", err);
