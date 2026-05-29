@@ -35,6 +35,7 @@ import { SmartMarketing } from "./components/SmartMarketing";
 import { Onboarding } from "./components/Onboarding";
 import { LandingPage } from "./components/LandingPage";
 import { AuthPage } from "./components/auth/AuthPage";
+import { PublicShop } from "./components/PublicShop";
 import { useAuth } from "./contexts/AuthContext";
 import { invokeApi } from "./services/api";
 import { getShopState, saveShopState } from "./services/shopState";
