@@ -209,13 +209,22 @@ export function ShopChatbot({
       
       // 2. Fallback: Call Gemini Directly
       console.log("[Chatbot] Calling direct Gemini AI...");
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       
-      if (!apiKey) {
-        console.error("[Chatbot] ERROR: VITE_GEMINI_API_KEY is missing in environment variables.");
+      // DIAGNOSTIC LOG (Safe: doesn't show the key, just if it exists)
+      const rawKey = import.meta.env.VITE_GEMINI_API_KEY;
+      console.log("[Chatbot] API Key check:", {
+        exists: !!rawKey,
+        length: rawKey?.length || 0,
+        type: typeof rawKey
+      });
+
+      const apiKey = rawKey;
+      
+      if (!apiKey || apiKey === "undefined" || apiKey === "") {
+        console.error("[Chatbot] ERROR: VITE_GEMINI_API_KEY is missing or invalid in environment.");
         setMessages((current) => [
           ...current,
-          { role: "assistant", content: "Configuration Error: API Key missing. Please check Vercel settings." },
+          { role: "assistant", content: "Configuration Error: API Key is missing. If you are on Vercel, please add VITE_GEMINI_API_KEY to Settings > Environment Variables and REDEPLOY." },
         ]);
         setLoading(false);
         return;
