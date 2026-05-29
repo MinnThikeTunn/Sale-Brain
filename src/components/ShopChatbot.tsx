@@ -210,27 +210,23 @@ export function ShopChatbot({
       // 2. Fallback: Call Gemini Directly
       console.log("[Chatbot] Calling direct Gemini AI...");
       
-      // DIAGNOSTIC LOG (Safe: doesn't show the key, just if it exists)
-      const rawKey = import.meta.env.VITE_GEMINI_API_KEY;
-      console.log("[Chatbot] API Key check:", {
-        exists: !!rawKey,
-        length: rawKey?.length || 0,
-        type: typeof rawKey
-      });
-
-      const apiKey = rawKey;
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       
       if (!apiKey || apiKey === "undefined" || apiKey === "") {
-        console.error("[Chatbot] ERROR: VITE_GEMINI_API_KEY is missing or invalid in environment.");
+        console.error("[Chatbot] ERROR: VITE_GEMINI_API_KEY is missing or invalid.");
         setMessages((current) => [
           ...current,
-          { role: "assistant", content: "Configuration Error: API Key is missing. If you are on Vercel, please add VITE_GEMINI_API_KEY to Settings > Environment Variables and REDEPLOY." },
+          { role: "assistant", content: "Configuration Error: API Key is missing. Please check Vercel settings." },
         ]);
         setLoading(false);
         return;
       }
 
-      const genAI = new GoogleGenAI(apiKey);
+      // Explicitly initialize the client here
+      const genAI = new GoogleGenAI(apiKey.trim());
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash",
+      });
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       
       // Build a mini-knowledge base from the products prop
