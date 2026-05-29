@@ -224,9 +224,6 @@ export function ShopChatbot({
 
       // Explicitly initialize the client here
       const genAI = new GoogleGenAI(apiKey.trim());
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
-      });
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       
       // Build a mini-knowledge base from the products prop
