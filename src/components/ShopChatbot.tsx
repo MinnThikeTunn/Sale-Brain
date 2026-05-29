@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GoogleGenAI } from "@google/genai";
 import { supabase } from "../utils/supabase";
 import { Product } from "../types";
 
@@ -208,7 +207,7 @@ export function ShopChatbot({
       }
       
       // 2. Fallback: Call Gemini Directly
-      console.log("[Chatbot] Calling direct Gemini AI...");
+      console.log("[Chatbot] Calling direct Gemini AI via fetch...");
       
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       
@@ -222,10 +221,6 @@ export function ShopChatbot({
         return;
       }
 
-      // Explicitly initialize the client here
-      const genAI = new GoogleGenAI(apiKey.trim());
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      
       // Build a mini-knowledge base from the products prop
       const productContext = products && products.length > 0 
         ? `Here are our products:\n${products.map(p => `- ${p.name} (ID: ${p.id}): ${p.price} MMK (${p.stock} left). ${p.description}`).join("\n")}`
@@ -251,13 +246,26 @@ export function ShopChatbot({
       Candy's reply:`;
 
       try {
-        console.log("[Chatbot] Sending request to Gemini...");
-        const result = await model.generateContent(systemPrompt);
-        const botText = result.response.text();
-        
-        if (!botText) throw new Error("Empty response from Gemini");
+        console.log("[Chatbot] Sending fetch request to Gemini...");
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: systemPrompt }] }]
+          })
+        });
 
-        // ... Parse actions logic ...
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error?.message || `HTTP error ${response.status}`);
+        }
+
+        const resData = await response.json();
+        const botText = resData.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (!botText) throw new Error("Empty response from Gemini API");
+
+        // Parse actions logic
         const actionMatch = botText.match(/\[ACTION:(.+?)\]/);
         if (actionMatch) {
           const actionStr = actionMatch[1];
@@ -276,9 +284,9 @@ export function ShopChatbot({
         const cleanText = botText.replace(/\[ACTION:.+?\]/g, "").trim();
         setMessages((current) => [...current, { role: "assistant", content: cleanText }]);
       } catch (innerErr: any) {
-        console.error("[Chatbot Gemini Call Error]", innerErr);
+        console.error("[Chatbot Gemini Fetch Error]", innerErr);
         let msg = "AI Error: ";
-        if (innerErr.message?.includes("fetch")) msg += "Network blocked. Check VPN.";
+        if (innerErr.message?.includes("Failed to fetch")) msg += "Network blocked. Check VPN or Region restrictions.";
         else msg += (innerErr.message || "Unknown error");
         setMessages((current) => [...current, { role: "assistant", content: msg }]);
       }
