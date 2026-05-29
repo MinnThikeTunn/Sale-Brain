@@ -46,7 +46,6 @@ export function getMarketingInsights(
     analyticsSummary: {
       salesGrowthEstimate: `Estimated uplift for ${campaignType} campaign`,
       engagementLevel: "Strong evening Messenger & Telegram peaks",
-      bestSellingCategory: selected[0]?.category ?? "General",
     },
     recommendations: [
       {

@@ -37,6 +37,7 @@ import { AuthPage } from "./components/auth/AuthPage";
 import { useAuth } from "./contexts/AuthContext";
 import { invokeApi } from "./services/api";
 import { getShopState, saveShopState } from "./services/shopState";
+import { getProducts, migrateProductsFromJson, upsertProduct, deleteProduct } from "./services/productService";
 import { Product, DeliveryZone, Order, ShopConfig, TelegramSession, SystemState } from "./types";
 import * as store from "./services/clientStore";
 import { supabase } from "./utils/supabase";
@@ -331,11 +332,13 @@ export default function App() {
   // New Product Form state
   const [prodForm, setProdForm] = useState({
     name: "",
-    category: "Desserts",
     price: 4500,
     description: "",
     stock: 25,
-    image: ""
+    image: "",
+    varies: [] as { key: string; value: string }[],
+    is_on_demand: false,
+    waiting_time: ""
   });
 
   // New Zone Form state
@@ -379,7 +382,21 @@ export default function App() {
         }
       }
 
-      // 3. Update states ONLY after all sync logic is done
+      // 3. Migrate products from JSON to table if needed
+      if (data.products && data.products.length > 0 && !data.config.productsMigrated) {
+        const result = await migrateProductsFromJson(user.id, data.products);
+        if (result.success) {
+          data.products = [];
+          data.config.productsMigrated = true;
+          await saveShopState(user.id, data);
+        }
+      }
+
+      // 4. Fetch products from table
+      const products = await getProducts(user.id);
+      data.products = products;
+
+      // 5. Update states ONLY after all sync logic is done
       setStoreState(data);
 
       setConfigDraft((prev) => {
@@ -401,7 +418,9 @@ export default function App() {
 
   const persistState = async (next: SystemState) => {
     if (!user) return;
-    await saveShopState(user.id, next);
+    // Exclude products from JSON storage - they live in the products table now
+    const stateToSave = { ...next, products: [] };
+    await saveShopState(user.id, stateToSave);
     setStoreState(next);
   };
 
@@ -526,32 +545,23 @@ export default function App() {
     setSavingAction(true);
     try {
       const isEdit = !!editingProduct;
-      if (!storeState || !user) return;
-      const next = { ...storeState };
-      if (isEdit && editingProduct) {
-        next.products = next.products.map((p) =>
-          p.id === editingProduct.id
-            ? {
-                ...editingProduct,
-                ...prodForm,
-                price: Number(prodForm.price) || 0,
-                stock: Number(prodForm.stock) || 0,
-              }
-            : p
-        );
-      } else {
-        next.products.push({
-          ...prodForm,
-          id: `prod-${Date.now()}`,
-          price: Number(prodForm.price) || 0,
-          stock: Number(prodForm.stock) || 0,
-          image:
-            prodForm.image ||
-            "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400",
-        });
-      }
-      await persistState(next);
-      {
+      if (!user) return;
+
+      const productData = {
+        id: editingProduct?.id,
+        name: prodForm.name,
+        price: Number(prodForm.price) || 0,
+        description: prodForm.description,
+        stock: Number(prodForm.stock) || 0,
+        image: prodForm.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400",
+        varies: prodForm.varies,
+        is_on_demand: prodForm.is_on_demand,
+        waiting_time: prodForm.waiting_time,
+      };
+
+      const result = await upsertProduct(user.id, productData);
+      
+      if (result.success) {
         showToast(
           isEdit 
             ? (lang === "my" ? "ကုန်ပစ္စည်းအချက်အလက် ပြင်ဆင်မှု ပြီးမြောက်ပါပြီ။" : "Product information updated successfully!")
@@ -560,8 +570,7 @@ export default function App() {
         );
         setShowProductModal(false);
         setEditingProduct(null);
-        // Clear form
-        setProdForm({ name: "", category: "Desserts", price: 4500, description: "", stock: 25, image: "" });
+        setProdForm({ name: "", price: 4500, description: "", stock: 25, image: "", varies: [], is_on_demand: false, waiting_time: "" });
         fetchState();
       }
     } catch (err) {
@@ -578,13 +587,15 @@ export default function App() {
 
     if (confirm(confirmMsg)) {
       try {
-        if (!storeState || !user) return;
-        const next = {
-          ...storeState,
-          products: storeState.products.filter((p) => p.id !== prod.id),
-        };
-        await persistState(next);
-        showToast(lang === "my" ? "ကုန်ပစ္စည်း ဖျက်ပြီးပါပြီ။" : "Product deleted successfully.", "success");
+        if (!user) return;
+        const result = await deleteProduct(prod.id, user.id);
+        if (result.success) {
+          showToast(
+            lang === "my" ? "ကုန်ပစ္စည်းကို ဖျက်ပြီးပါပြီ။" : "Product removed from catalog.",
+            "info"
+          );
+          fetchState();
+        }
       } catch (err) {
         console.error(err);
       }
@@ -1354,7 +1365,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     setEditingProduct(null);
-                    setProdForm({ name: "", category: "Desserts", price: 4500, description: "", stock: 25, image: "" });
+                    setProdForm({ name: "", price: 4500, description: "", stock: 25, image: "", varies: [], is_on_demand: false, waiting_time: "" });
                     setShowProductModal(true);
                   }}
                   className="bg-black hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
@@ -1380,10 +1391,23 @@ export default function App() {
 
                     <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                       <div>
-                        <div className="text-[8px] font-bold tracking-wider font-mono text-indigo-600 uppercase">
-                          {t("categories")[p.category as "Desserts" | "Beverages" | "Lifestyle" | "Snacks"] || p.category}
-                        </div>
-                        <h4 className="text-xs font-semibold text-slate-800 mt-1 line-clamp-1">{p.name}</h4>
+                        <h4 className="text-xs font-semibold text-slate-800 line-clamp-1">{p.name}</h4>
+{p.varies && p.varies.length > 0 && (
+                           <div className="flex flex-wrap gap-1.5 mt-2">
+                             {p.varies.slice(0, 3).map((vary, idx) => (
+                               <div key={idx} className="inline-flex items-center gap-1 text-[9px] font-medium bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200/60 px-2 py-1 rounded-lg">
+                                 <span className="text-indigo-500 font-semibold">{vary.key}</span>
+                                 <span className="text-slate-300">•</span>
+                                 <span className="text-indigo-700 font-semibold">{vary.value}</span>
+                               </div>
+                             ))}
+                             {p.varies.length > 3 && (
+                               <span className="text-[9px] font-medium text-slate-500 bg-slate-100/80 border border-slate-200/60 px-2 py-1 rounded-lg">
+                                 +{p.varies.length - 3}
+                               </span>
+                             )}
+                           </div>
+                         )}
                       </div>
 
                       <div className="pt-2 border-t border-slate-100/80 flex items-center justify-between text-[11px]">
@@ -1403,11 +1427,13 @@ export default function App() {
                             setEditingProduct(p);
                             setProdForm({
                               name: p.name,
-                              category: p.category,
                               price: p.price,
                               description: p.description,
                               stock: p.stock,
-                              image: p.image
+                              image: p.image,
+                              varies: p.varies || [],
+                              is_on_demand: p.is_on_demand || false,
+                              waiting_time: p.waiting_time || ""
                             });
                             setShowProductModal(true);
                           }}
@@ -1456,32 +1482,16 @@ export default function App() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-semibold text-slate-400 block uppercase">{t("categoryLabel")}</label>
-                          <select
-                            value={prodForm.category}
-                            onChange={(e) => setProdForm({ ...prodForm, category: e.target.value })}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          >
-                            <option value="Desserts">Sweet Desserts & Cakes</option>
-                            <option value="Beverages">Artisanal Drinks & Mixes</option>
-                            <option value="Lifestyle">Traditional Arts & Crafts</option>
-                            <option value="Snacks">Cracker Snacks</option>
-                          </select>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-semibold text-slate-400 block uppercase">{t("unitPriceLabel")}</label>
-                          <input
-                            type="number"
-                            required
-                            value={prodForm.price}
-                            onChange={(e) => setProdForm({ ...prodForm, price: Number(e.target.value) })}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            placeholder="e.g., 4500"
-                          />
-                        </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-semibold text-slate-400 block uppercase">{t("unitPriceLabel")}</label>
+                        <input
+                          type="number"
+                          required
+                          value={prodForm.price}
+                          onChange={(e) => setProdForm({ ...prodForm, price: Number(e.target.value) })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          placeholder="e.g., 4500"
+                        />
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
@@ -1554,6 +1564,91 @@ export default function App() {
                           placeholder="Explain ingredients or packing..."
                         />
                       </div>
+
+                      {/* Varies Section */}
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-semibold text-slate-400 block uppercase">
+                          {lang === "my" ? "အမျိုးအစားများ" : "VARIES"}
+                        </label>
+                        <div className="space-y-2">
+                          {prodForm.varies.map((vary, idx) => (
+                            <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                              <input
+                                type="text"
+                                value={vary.key}
+                                onChange={(e) => {
+                                  const updated = [...prodForm.varies];
+                                  updated[idx].key = e.target.value;
+                                  setProdForm({ ...prodForm, varies: updated });
+                                }}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                placeholder={lang === "my" ? "အမည်" : "Key (e.g., Size)"}
+                              />
+                              <input
+                                type="text"
+                                value={vary.value}
+                                onChange={(e) => {
+                                  const updated = [...prodForm.varies];
+                                  updated[idx].value = e.target.value;
+                                  setProdForm({ ...prodForm, varies: updated });
+                                }}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                placeholder={lang === "my" ? "တန်ဖိုး" : "Value (e.g., 500g)"}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = prodForm.varies.filter((_, i) => i !== idx);
+                                  setProdForm({ ...prodForm, varies: updated });
+                                }}
+                                className="text-rose-600 hover:text-rose-700 p-2 rounded-lg hover:bg-rose-50 transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProdForm({ ...prodForm, varies: [...prodForm.varies, { key: "", value: "" }] });
+                            }}
+                            className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 py-2 rounded-lg text-[10px] font-bold tracking-wide transition-all cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            <Plus size={12} /> {lang === "my" ? "အမျိုးအစား ထည့်ရန်" : "Add Varies"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* On Demand Toggle */}
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={prodForm.is_on_demand}
+                            onChange={(e) => setProdForm({ ...prodForm, is_on_demand: e.target.checked, waiting_time: e.target.checked ? prodForm.waiting_time : "" })}
+                            className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                          />
+                          <span className="text-[11px] font-semibold text-slate-700">
+                            {lang === "my" ? "အော်ဒါအလိုက် ပြုလုပ်ရန်" : "On Demand"}
+                          </span>
+                        </label>
+                      </div>
+
+                      {/* Conditional Waiting Time Input */}
+                      {prodForm.is_on_demand && (
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-semibold text-slate-400 block uppercase">
+                            {lang === "my" ? "စောင့်ဆိုင်းရမည့်အချိန်" : "WAITING TIME"}
+                          </label>
+                          <input
+                            type="text"
+                            value={prodForm.waiting_time}
+                            onChange={(e) => setProdForm({ ...prodForm, waiting_time: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            placeholder={lang === "my" ? "ဥပမာ - ၂ ရက်" : "e.g., 2 days"}
+                          />
+                        </div>
+                      )}
 
                       <button
                         type="submit"

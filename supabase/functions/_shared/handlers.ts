@@ -248,7 +248,6 @@ async function handleMarketingInsights(ctx: ShopContext, body: Record<string, un
         analyticsSummary: {
           salesGrowthEstimate: "+20%",
           engagementLevel: "Moderate",
-          bestSellingCategory: primary?.category || "General",
         },
         recommendations: [
           {

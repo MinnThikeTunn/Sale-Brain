@@ -74,7 +74,7 @@ export async function processCustomerMessage(
     session.currentStep = "greeting";
     session.cart = [];
     const welcomeText = `Mingalabar shin! 🙏 Welcome to *${ctx.state.config.shopName || "Shwe Pathein Treats"}*! Candy (AI Assistant) is so happy to assist you today. 💕\n\nHere is our premium product list! Which delicious traditional Myanmar treats can Candy pack for you?\n\n` +
-      ctx.state.products.map((p, idx) => `${idx + 1}️⃣ *${p.name}* - ${p.price.toLocaleString()} MMK\n  _Category: ${p.category} | ${p.description}_`).join("\n\n") +
+      ctx.state.products.map((p, idx) => `${idx + 1}️⃣ *${p.name}* - ${p.price.toLocaleString()} MMK\n  _${p.description}_`).join("\n\n") +
       `\n\n✨ You can reply with "Add 2 Halawa", tap our interactive buttons, or ask me any question!`;
 
     const inlineKeyboard = ctx.state.products.map(p => [{ text: `🛒 Add ${p.name}`, callback_data: `add_${p.id}` }]);
@@ -224,7 +224,7 @@ export async function processCustomerMessage(
     const ai = ctx.getGemini();
 
     const productsPromptString = ctx.state.products.map(p =>
-      `- [ID: ${p.id}] "${p.name}" | Price: ${p.price} MMK | Stock remaining: ${p.stock} | Category: ${p.category} | Info: ${p.description}`
+      `- [ID: ${p.id}] "${p.name}" | Price: ${p.price} MMK | Stock remaining: ${p.stock} | Info: ${p.description}`
     ).join("\n");
 
     const deliveryZonesPromptString = ctx.state.deliveryZones.map(z =>
