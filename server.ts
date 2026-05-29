@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
@@ -12,8 +11,10 @@ const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
-// File-based state persistence
-const STATE_FILE = path.join(process.cwd(), "sales_brain_state.json");
+// File-based state persistence (/tmp on Vercel — ephemeral but writable)
+const STATE_FILE = process.env.VERCEL
+  ? path.join("/tmp", "sales_brain_state.json")
+  : path.join(process.cwd(), "sales_brain_state.json");
 
 // Helper types
 import { SystemState, Product, DeliveryZone, Order, ChatMessage, TelegramSession } from "./src/types";
@@ -2034,6 +2035,7 @@ Your tone should be inspiring, professional, and clear. Under 220 words. Keep he
 // Vite Middleware & Static Fallback Asset Serving Code as mandated by full-stack React framework
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa"
@@ -2052,4 +2054,9 @@ async function startServer() {
   });
 }
 
-startServer();
+export default app;
+
+// Local dev / standalone prod only — on Vercel, api/index.ts serves the Express app
+if (!process.env.VERCEL) {
+  startServer();
+}
