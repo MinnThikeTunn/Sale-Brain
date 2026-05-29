@@ -65,6 +65,7 @@ export interface ShopConfig {
   messengerBotId: string;
   messengerBotName: string;
   onboardingCompleted: boolean;
+  shopId?: string;
 }
 
 export interface TelegramSession {

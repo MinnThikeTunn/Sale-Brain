@@ -25,7 +25,8 @@ import {
   ExternalLink,
   Smartphone,
   Languages,
-  Send
+  Send,
+  Copy
 } from "lucide-react";
 
 import { CustomChart } from "./components/CustomChart";
@@ -40,6 +41,7 @@ import { getShopState, saveShopState } from "./services/shopState";
 import { Product, DeliveryZone, Order, ShopConfig, TelegramSession, SystemState } from "./types";
 import * as store from "./services/clientStore";
 import { supabase } from "./utils/supabase";
+import { buildShopPublicUrl } from "./utils/shopId";
 
 // Complete localized dictionary for total English & Burmese translation sync
 const dict = {
@@ -327,6 +329,7 @@ export default function App() {
   const [showProductModal, setShowProductModal] = useState<boolean>(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showNotification, setShowNotification] = useState<{ text: string; type: "success" | "info" } | null>(null);
+  const [copiedConfigLink, setCopiedConfigLink] = useState<boolean>(false);
 
   // New Product Form state
   const [prodForm, setProdForm] = useState({
@@ -374,6 +377,7 @@ export default function App() {
       if (onboardingData) {
         // Sync completion status and business name from DB to the state object
         data.config.onboardingCompleted = onboardingData.onboarding_completed;
+        data.config.shopId = onboardingData.shop_id;
         if (onboardingData.business_name) {
           data.config.shopName = onboardingData.business_name;
         }
@@ -784,7 +788,8 @@ export default function App() {
               ...storeState.config,
               shopName: profile.shopName,
               ownerName: profile.ownerName,
-              onboardingCompleted: true
+              onboardingCompleted: true,
+              shopId: profile.shopId
             }
           };
           setStoreState(updatedState);
@@ -798,6 +803,7 @@ export default function App() {
               shopName: profile.shopName,
               ownerName: profile.ownerName,
               onboardingCompleted: true,
+              shopId: profile.shopId,
             });
             
             // Second, save full state to storage
@@ -1756,6 +1762,46 @@ export default function App() {
                       <span>{t("liveBot")}</span>
                       <ExternalLink size={10} />
                     </a>
+                  </div>
+                )}
+
+                {storeState.config.shopId && (
+                  <div className="mt-4 p-3 bg-indigo-50 border border-indigo-100 rounded-xl space-y-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-600/10 text-indigo-600 flex items-center justify-center font-bold text-sm shrink-0">
+                        <ShoppingBag size={16} />
+                      </div>
+                      <div>
+                        <h4 className="text-[11px] font-bold text-slate-900">
+                          {lang === "my" ? "သင်၏ အွန်လိုင်းအရောင်းဆိုင် လင့်ခ်" : "Your Public Shop Link"}
+                        </h4>
+                        <p className="text-[9px] text-slate-400 font-mono">
+                          Share this with your customers
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <div className="flex-1 bg-white border border-indigo-100 rounded-lg px-3 py-2 text-[10px] font-mono text-slate-600 truncate flex items-center">
+                        {buildShopPublicUrl(storeState.config.shopId)}
+                      </div>
+                      <button
+                        onClick={() => {
+                          const url = buildShopPublicUrl(storeState.config.shopId!);
+                          navigator.clipboard.writeText(url);
+                          setCopiedConfigLink(true);
+                          setTimeout(() => setCopiedConfigLink(false), 2000);
+                        }}
+                        className={`px-3 py-2 rounded-lg border transition-all flex items-center justify-center gap-1.5 text-[10px] font-bold cursor-pointer shadow-sm ${
+                          copiedConfigLink 
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-600" 
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {copiedConfigLink ? <Check size={12} /> : <Copy size={12} />}
+                        <span>{copiedConfigLink ? (lang === "my" ? "ကူးပြီး" : "Copied") : (lang === "my" ? "ကူးမည်" : "Copy")}</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 

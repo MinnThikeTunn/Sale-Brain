@@ -55,6 +55,7 @@ async function handleOnboarding(ctx: ShopContext, body: Record<string, unknown>)
     messengerBotId: String(b.messengerBotId || "messenger"),
     messengerBotName: String(b.messengerBotName || "Messenger Bot"),
     onboardingCompleted: b.onboardingCompleted !== undefined ? Boolean(b.onboardingCompleted) : true,
+    shopId: b.shopId ? String(b.shopId) : ctx.state.config.shopId,
   };
   await ctx.save();
   if (ctx.state.config.telegramBotToken) {
