@@ -1,3 +1,4 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
 import { createDefaultState } from "./defaults.ts";
 import type { ChatMessage, Order, SystemState } from "./types.ts";
 import type { ShopContext } from "./context.ts";
@@ -61,6 +62,28 @@ async function handleOnboarding(ctx: ShopContext, body: Record<string, unknown>)
     shopId: b.shopId ? String(b.shopId) : ctx.state.config.shopId,
   };
   await ctx.save();
+
+  // Sync to database table for public shop mapping
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+  );
+
+  const { error: dbError } = await supabase
+    .from("business_onboarding")
+    .upsert({
+      user_id: ctx.userId,
+      business_name: ctx.state.config.shopName,
+      owner_name: ctx.state.config.ownerName,
+      phone: ctx.state.config.phone,
+      shop_id: ctx.state.config.shopId,
+      onboarding_completed: ctx.state.config.onboardingCompleted,
+    }, { onConflict: 'user_id' });
+
+  if (dbError) {
+    console.error("[onboarding-db-sync]", dbError);
+  }
+
   if (ctx.state.config.telegramBotToken) {
     await registerTelegramWebhook(ctx.userId, ctx.state.config.telegramBotToken);
   }
