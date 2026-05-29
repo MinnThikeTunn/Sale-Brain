@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { GoogleGenAI } from "@google/genai";
 import { supabase } from "../utils/supabase";
 import { Product } from "../types";
 
@@ -162,6 +163,7 @@ export function ShopChatbot({
     setLoading(true);
 
     try {
+      // 1. Try Supabase Edge Function first
       const { data, error } = await supabase.functions.invoke("shop", {
         body: {
           action: "chat",
@@ -171,8 +173,7 @@ export function ShopChatbot({
         }
       });
 
-      if (!error && data) {
-        // Extract the last bot message from the returned session
+      if (!error && data?.session) {
         const session = data.session;
         const lastMsg = session.messages[session.messages.length - 1];
         if (lastMsg && lastMsg.sender === "bot") {
@@ -180,17 +181,37 @@ export function ShopChatbot({
             ...current,
             { role: "assistant", content: lastMsg.content },
           ]);
+          setLoading(false);
+          return;
         }
-      } else {
-        setMessages((current) => [
-          ...current,
-          { role: "assistant", content: copy.error },
-        ]);
       }
-    } catch {
+      
+      // 2. Fallback: Call Gemini Directly if Supabase fails or is not deployed
+      console.log("[Chatbot] Falling back to direct Gemini AI...");
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) throw new Error("Missing VITE_GEMINI_API_KEY");
+
+      const genAI = new GoogleGenAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      
+      const systemPrompt = `You are "Candy", a sweet and helpful AI assistant for "${businessName}".
+      Speak in a mix of polite Myanmar/Burmese and English. 
+      Answer this customer question: ${trimmed}
+      Keep it short, charming, and focused on helping them shop.`;
+
+      const result = await model.generateContent(systemPrompt);
+      const response = await result.response;
+      const botText = response.text();
+
       setMessages((current) => [
         ...current,
-        { role: "assistant", content: copy.connectionError },
+        { role: "assistant", content: botText },
+      ]);
+    } catch (err) {
+      console.error("[Chatbot Error]", err);
+      setMessages((current) => [
+        ...current,
+        { role: "assistant", content: copy.error },
       ]);
     } finally {
       setLoading(false);
