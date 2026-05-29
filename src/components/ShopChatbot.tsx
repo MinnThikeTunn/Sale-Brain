@@ -177,12 +177,17 @@ export function ShopChatbot({
         const session = data.session;
         const lastMsg = session.messages[session.messages.length - 1];
         if (lastMsg && lastMsg.sender === "bot") {
-          setMessages((current) => [
-            ...current,
-            { role: "assistant", content: lastMsg.content },
-          ]);
-          setLoading(false);
-          return;
+          // Check if the backend returned the "syncing" fallback message
+          if (lastMsg.content.includes("direct pipeline is syncing")) {
+            console.log("[Chatbot] Backend AI is syncing/failed. Forcing frontend AI...");
+          } else {
+            setMessages((current) => [
+              ...current,
+              { role: "assistant", content: lastMsg.content },
+            ]);
+            setLoading(false);
+            return;
+          }
         }
       }
       
