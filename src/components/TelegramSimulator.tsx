@@ -2,26 +2,32 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Sparkles, User, ShieldAlert, Image, Check, ShoppingBag, MapPin, CreditCard, ChevronRight } from "lucide-react";
 import { TelegramSession, Product, DeliveryZone, Order } from "../types";
 import { botSimulateInput } from "../services/clientStore";
+import { supabase } from "../utils/supabase";
 
 interface TelegramSimulatorProps {
   session: TelegramSession | undefined;
   products: Product[];
   deliveryZones: DeliveryZone[];
   onStateUpdated: () => void;
-  onSendReply: (text: string) => Promise<void>;
-  onTriggerTakeover: () => Promise<void>;
-  onTriggerRelease: () => Promise<void>;
+  onSendReply?: (text: string) => Promise<void>;
+  onTriggerTakeover?: () => Promise<void>;
+  onTriggerRelease?: () => Promise<void>;
+  isPublic?: boolean;
+  shopId?: string;
 }
 
 export function TelegramSimulator({
-  session,
+  session: initialSession,
   products,
   deliveryZones,
   onStateUpdated,
   onSendReply,
   onTriggerTakeover,
-  onTriggerRelease
+  onTriggerRelease,
+  isPublic = false,
+  shopId
 }: TelegramSimulatorProps) {
+  const [session, setSession] = useState<TelegramSession | undefined>(initialSession);
   const [inputText, setInputText] = useState("");
   const [txIdInput, setTxIdInput] = useState("");
   const [selectedPayMethod, setSelectedPayMethod] = useState<'KPay' | 'WavePay' | 'CBPay' | 'AYA Pay'>('KPay');
@@ -30,6 +36,57 @@ export function TelegramSimulator({
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Sync internal session with prop if not public
+  useEffect(() => {
+    if (!isPublic) {
+      setSession(initialSession);
+    }
+  }, [initialSession, isPublic]);
+
+  // Polling for public session updates
+  useEffect(() => {
+    if (!isPublic || !shopId) return;
+
+    let publicSessionId = localStorage.getItem(`shop_session_${shopId}`);
+    if (!publicSessionId) {
+      publicSessionId = `pub_${Math.random().toString(36).substring(2, 11)}`;
+      localStorage.setItem(`shop_session_${shopId}`, publicSessionId);
+    }
+
+    const interval = setInterval(async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("shop", {
+          body: { action: "get-state", shopId }
+        });
+        if (!error && data) {
+          // Find the session for this user
+          const sessions = data.sessions || {};
+          const mySession = Object.values(sessions).find((s: any) => s.sessionId === publicSessionId);
+          if (mySession) {
+            setSession(mySession as TelegramSession);
+          } else if (!session) {
+            // Create initial session object if none exists yet
+            setSession({
+              sessionId: publicSessionId!,
+              customerName: "Public Customer",
+              customerPhone: "",
+              customerTelegramId: `web_${publicSessionId}`,
+              messages: [],
+              lastActive: new Date().toISOString(),
+              currentStep: "greeting",
+              cart: [],
+              liveTakeoverActive: false
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("Polling error:", err);
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [isPublic, shopId]);
+
   // Auto-scroll chat to latest messages
   useEffect(() => {
     if (scrollRef.current && session) {
@@ -37,35 +94,39 @@ export function TelegramSimulator({
     }
   }, [session?.messages]);
 
-  // Quick action suggested inputs
-  const suggestions = [
-    { label: "Mingalabar Candy!", text: "Mingalabar Candy! I want to browse products today." },
-    { label: "Add Pathein Halawa", text: "I want to add 1 Pathein Halawa to my bag, please!" },
-    { label: "Do you have Royal Tea?", text: "Is the Royal Myanmar Tea pack available?" },
-    { label: "Talk to a Human", text: "I want to talk to a human customer agent" }
-  ];
-
-  // Helper mock screenshot assets
-  const mockReceipts = [
-    { name: "KPay Green Ticket", url: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&q=80&w=200" },
-    { name: "Wavepay Screen Transfer", url: "https://images.unsplash.com/photo-1616077168079-7e09a677fb2c?auto=format&fit=crop&q=80&w=200" }
-  ];
-
   const handleSendMessage = async (customText?: string) => {
-    if (!session) return;
     const textToSend = customText || inputText;
     const finalImage = customAttachBase64 || mockScreenshotBase64;
     if (!textToSend.trim() && !finalImage) return;
 
     setLoading(true);
     try {
-      botSimulateInput({
-        sessionId: session.sessionId,
-        content: textToSend,
-        base64Image: finalImage || undefined,
-        transactionId: txIdInput || undefined,
-        payMethod: selectedPayMethod,
-      });
+      let currentSessionId = session?.sessionId || localStorage.getItem(`shop_session_${shopId}`) || "default";
+
+      if (isPublic && shopId) {
+        const { data, error } = await supabase.functions.invoke("shop", {
+          body: {
+            action: "chat",
+            shopId,
+            sessionId: currentSessionId,
+            content: textToSend,
+            base64Image: finalImage || undefined,
+            transactionId: txIdInput || undefined,
+            payMethod: selectedPayMethod,
+          }
+        });
+        if (error) throw error;
+        if (data.session) setSession(data.session);
+      } else if (session) {
+        botSimulateInput({
+          sessionId: session.sessionId,
+          content: textToSend,
+          base64Image: finalImage || undefined,
+          transactionId: txIdInput || undefined,
+          payMethod: selectedPayMethod,
+        });
+      }
+
       setInputText("");
       setTxIdInput("");
       setMockScreenshotBase64(null);
@@ -82,11 +143,25 @@ export function TelegramSimulator({
     if (!session) return;
     setLoading(true);
     try {
-      botSimulateInput({
-        sessionId: session.sessionId,
-        checkoutOption: option,
-        payMethod: option === "prepay" ? "KPay" : "CoD",
-      });
+      if (isPublic && shopId) {
+        const { data, error } = await supabase.functions.invoke("shop", {
+          body: {
+            action: "chat",
+            shopId,
+            sessionId: session.sessionId,
+            checkoutOption: option,
+            payMethod: option === "prepay" ? "KPay" : "CoD",
+          }
+        });
+        if (error) throw error;
+        if (data.session) setSession(data.session);
+      } else {
+        botSimulateInput({
+          sessionId: session.sessionId,
+          checkoutOption: option,
+          payMethod: option === "prepay" ? "KPay" : "CoD",
+        });
+      }
       onStateUpdated();
     } catch (err) {
       console.error(err);
@@ -99,11 +174,25 @@ export function TelegramSimulator({
     if (!session) return;
     setLoading(true);
     try {
-      botSimulateInput({
-        sessionId: session.sessionId,
-        township: town,
-        payMethod: payMethodSelected,
-      });
+      if (isPublic && shopId) {
+        const { data, error } = await supabase.functions.invoke("shop", {
+          body: {
+            action: "chat",
+            shopId,
+            sessionId: session.sessionId,
+            township: town,
+            payMethod: payMethodSelected,
+          }
+        });
+        if (error) throw error;
+        if (data.session) setSession(data.session);
+      } else {
+        botSimulateInput({
+          sessionId: session.sessionId,
+          township: town,
+          payMethod: payMethodSelected,
+        });
+      }
       onStateUpdated();
     } catch (err) {
       console.error(err);

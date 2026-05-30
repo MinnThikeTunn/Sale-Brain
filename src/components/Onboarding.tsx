@@ -6,6 +6,9 @@ import {
   ArrowRight,
   ArrowLeft,
   Sparkles,
+  Copy,
+  Check,
+  ExternalLink
   Phone,
   MapPin,
 } from "lucide-react";
@@ -15,6 +18,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { saveShopOnboarding } from "../services/shopRecord";
 import { loadTownships } from "../data/townships";
 import type { OnboardingFormState } from "../types";
+import { generateShopId, buildShopPublicUrl } from "../utils/shopId";
 
 interface OnboardingProps {
   lang: "en" | "my";
@@ -56,7 +60,7 @@ export function Onboarding({
   onLangChange,
 }: OnboardingProps) {
   const { user } = useAuth();
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState<OnboardingFormState>(() => ({
@@ -164,6 +168,22 @@ export function Onboarding({
     setSaving(true);
     setStep(4);
 
+    // Reuse existing shop_id if available to prevent link changes
+    let shopId = "";
+    const { data: existing } = await supabase
+      .from('business_onboarding')
+      .select('shop_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (existing?.shop_id) {
+      shopId = existing.shop_id;
+    } else {
+      shopId = generateShopId();
+    }
+
+    setGeneratedShopId(shopId);
+
     try {
       await saveShopOnboarding(user.id, {
         shopName: formData.business_name,
@@ -204,12 +224,31 @@ export function Onboarding({
     }
   };
 
+  const handleComplete = () => {
+    if (!user) return;
+    const aiSummary = `Business Profile Saved! Based on your goal of ${formData.business_goal} and ${formData.bot_personality} personality, Sales Brain AI is now optimized for your ${formData.business_category} store.`;
+
+    onComplete({
+      shopName: formData.business_name,
+      ownerName: user.email?.split('@')[0] || "Owner",
+      shopId: generatedShopId
+    }, aiSummary);
+  };
+
+  const copyToClipboard = () => {
+    const url = buildShopPublicUrl(generatedShopId);
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const currentStepLabel = () => {
     if (lang === "my") {
       switch (step) {
         case 1: return "လုပ်ငန်းအခြေခံ အချက်အလက်";
         case 2: return "လုပ်ငန်းလည်ပတ်မှု ပုံစံ";
         case 3: return "ဘော့တ် မဟာဗျူဟာ";
+        case 5: return "ဂုဏ်ယူပါတယ်";
         default: return "အချက်အလက် သိမ်းဆည်းနေပါသည်";
       }
     } else {
@@ -217,6 +256,7 @@ export function Onboarding({
         case 1: return "Business Basics";
         case 2: return "Operations";
         case 3: return "Bot Strategy";
+        case 5: return "Congratulations";
         default: return "Processing";
       }
     }
@@ -247,25 +287,23 @@ export function Onboarding({
               <button
                 type="button"
                 onClick={() => onLangChange?.("en")}
-                className={`px-2 py-0.5 text-[8px] font-bold rounded-md transition-all ${
-                  lang === "en" ? "bg-black text-white" : "text-slate-500"
-                }`}
+                className={`px-2 py-0.5 text-[8px] font-bold rounded-md transition-all ${lang === "en" ? "bg-black text-white" : "text-slate-500"
+                  }`}
               >
                 EN
               </button>
               <button
                 type="button"
                 onClick={() => onLangChange?.("my")}
-                className={`px-2 py-0.5 text-[8px] font-bold rounded-md transition-all ${
-                  lang === "my" ? "bg-black text-white" : "text-slate-500"
-                }`}
+                className={`px-2 py-0.5 text-[8px] font-bold rounded-md transition-all ${lang === "my" ? "bg-black text-white" : "text-slate-500"
+                  }`}
               >
                 မြန်မာ
               </button>
             </div>
 
             <div className="text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-md">
-              {lang === "my" ? `အဆင့် ${step} / ၃` : `Step ${step} of 3`}
+              {step === 5 ? (lang === "my" ? "ပြီးစီးပါပြီ" : "Done") : (lang === "my" ? `အဆင့် ${step} / ၃` : `Step ${step} of 3`)}
             </div>
           </div>
 
@@ -275,13 +313,13 @@ export function Onboarding({
                 {currentStepLabel()}
               </h1>
               <span className="text-[10px] font-bold text-indigo-500 font-mono">
-                {Math.round(((step - 1) / 3) * 100)}% Completed
+                {step === 5 ? "100" : Math.round(((step - 1) / 3) * 100)}% Completed
               </span>
             </div>
             <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex border border-slate-200/20">
               <div
                 className="h-full bg-gradient-to-r from-indigo-500 to-sky-500 transition-all duration-500 ease-out"
-                style={{ width: `${(step / 3) * 100}%` }}
+                style={{ width: `${step === 5 ? 100 : (step / 3) * 100}%` }}
               ></div>
             </div>
           </div>
@@ -493,6 +531,69 @@ export function Onboarding({
                 </div>
               </motion.div>
             )}
+
+            {step === 5 && (
+              <motion.div
+                key="step-5"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex-1 flex flex-col justify-center items-center text-center space-y-8 py-4"
+              >
+                <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                  <Check size={40} />
+                </div>
+
+                <div className="space-y-3">
+                  <h2 className="text-2xl font-extrabold text-slate-800">
+                    {lang === "my" ? "အချက်အလက်များ အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ" : "Your Shop is Ready!"}
+                  </h2>
+                  <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+                    {lang === "my"
+                      ? "သင်၏ အွန်လိုင်းအရောင်းဆိုင်အတွက် အေအိုင်စနစ်ကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။ အောက်ပါလင့်ခ်ကို အသုံးပြု၍ သင်၏ ဆိုင်ကို ဝင်ရောက်ကြည့်ရှုနိုင်ပါသည်။"
+                      : "We've generated a unique link for your shop. You can use this link to access your store or share it with your customers."}
+                  </p>
+                </div>
+
+                <div className="w-full max-w-md space-y-3">
+                  <label className="text-[10px] font-mono font-extrabold text-slate-400 uppercase block tracking-wider text-left">
+                    {lang === "my" ? "သင်၏ ဆိုင်လင့်ခ်" : "Your Shop Link"}
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 truncate flex items-center">
+                      {buildShopPublicUrl(generatedShopId)}
+                    </div>
+                    <button
+                      onClick={copyToClipboard}
+                      className={`px-4 rounded-xl border transition-all flex items-center justify-center gap-2 text-xs font-bold cursor-pointer ${copied
+                          ? "bg-emerald-50 border-emerald-200 text-emerald-600"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                    >
+                      {copied ? <Check size={14} /> : <Copy size={14} />}
+                      <span>{copied ? (lang === "my" ? "ကူးယူပြီး" : "Copied") : (lang === "my" ? "ကူးမည်" : "Copy")}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 w-full max-w-md pt-4">
+                  <a
+                    href={buildShopPublicUrl(generatedShopId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 bg-white border border-slate-200 text-slate-600 font-bold py-3.5 rounded-2xl text-xs flex items-center justify-center gap-2 hover:bg-slate-50 transition-all"
+                  >
+                    <ExternalLink size={14} />
+                    {lang === "my" ? "ဆိုင်ကို ကြည့်မည်" : "Visit Store"}
+                  </a>
+                  <button
+                    onClick={handleComplete}
+                    className="flex-1 bg-black text-white font-bold py-3.5 rounded-2xl text-xs hover:bg-slate-800 transition-all shadow-sm cursor-pointer"
+                  >
+                    {lang === "my" ? "ဒက်ရှ်ဘုတ်သို့ သွားမည်" : "Go to Dashboard"}
+                  </button>
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
 
           {step < 4 && (
@@ -528,11 +629,10 @@ export function Onboarding({
                     setStep((prev) => (prev + 1) as 1 | 2 | 3 | 4);
                   }
                 }}
-                className={`px-6 py-2.5 rounded-xl text-xs font-semibold text-white transition-all transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer flex items-center gap-1.5 ${
-                  isStepValid()
+                className={`px-6 py-2.5 rounded-xl text-xs font-semibold text-white transition-all transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer flex items-center gap-1.5 ${isStepValid()
                     ? "bg-black hover:bg-slate-800 shadow-sm"
                     : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                }`}
+                  }`}
               >
                 <span>
                   {step === 3

@@ -1,4 +1,4 @@
-CREATE TABLE business_onboarding (
+CREATE TABLE IF NOT EXISTS business_onboarding (
     onboarding_id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     user_id UUID NOT NULL REFERENCES auth.users(id),
     business_name VARCHAR(255) NOT NULL,

@@ -36,3 +36,11 @@ html, body {
   @apply font-bold; /* Ensure labels/subtitles are bold as requested */
 }
 
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+

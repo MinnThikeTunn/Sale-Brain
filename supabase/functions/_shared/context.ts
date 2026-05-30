@@ -1,3 +1,4 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
 import type { GoogleGenAI } from "npm:@google/genai@2.4.0";
 import type { SystemState } from "./types.ts";
 import { getGeminiClient } from "./gemini.ts";
@@ -26,4 +27,23 @@ export async function createShopContext(userId: string): Promise<ShopContext> {
     sendTelegram: (chatId, text, options) => sendTelegramMessage(ctx.state, chatId, text, options),
   };
   return ctx;
+}
+
+export async function createShopContextByShopId(shopId: string): Promise<ShopContext> {
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+  );
+
+  const { data, error } = await supabase
+    .from("business_onboarding")
+    .select("user_id")
+    .eq("shop_id", shopId)
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Shop not found: ${shopId}`);
+  }
+
+  return createShopContext(data.user_id);
 }

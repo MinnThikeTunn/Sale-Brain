@@ -66,6 +66,7 @@ export interface ShopConfig {
   telegramBotToken: string;
   telegramBotUsername: string;
   onboardingCompleted: boolean;
+  shopId?: string;
   productsMigrated?: boolean;
 }
 
@@ -135,6 +136,7 @@ export interface OnboardingFormState {
 export interface BusinessOnboarding {
   onboarding_id?: number;
   user_id: string;
+  shop_id?: string;
   business_name: string;
   business_category: string;
   selling_platform: string;

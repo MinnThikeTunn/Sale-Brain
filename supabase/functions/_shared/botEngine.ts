@@ -1,5 +1,5 @@
-// AUTO-GENERATED from server.ts — re-run scripts/port-bot-engine.mjs
 import type { ShopContext } from "./context.ts";
+import { retrieveRelevantKnowledge, buildRetrievedContext } from "./knowledge.ts";
 
 export async function processCustomerMessage(
   ctx: ShopContext,
@@ -120,7 +120,7 @@ export async function processCustomerMessage(
     session.currentStep = "selecting_township";
     session.tempPayMethod = checkoutOption;
     const townshipsList = ctx.state.deliveryZones.map(z => z.township);
-    
+
     // Auto-generate inline keyboard for townships
     const inlineKeyboard = townshipsList.map(t => [{ text: `🛵 ${t}`, callback_data: `township_${t}` }]);
 
@@ -219,26 +219,19 @@ export async function processCustomerMessage(
     }
   }
 
-  // 6. Gemini 3.5 AI dialog chat fallback rules
+  // 6. Gemini 3.5 AI dialog chat with RAG
   try {
     const ai = ctx.getGemini();
 
-    const productsPromptString = ctx.state.products.map(p =>
-      `- [ID: ${p.id}] "${p.name}" | Price: ${p.price} MMK | Stock remaining: ${p.stock} | Info: ${p.description}`
-    ).join("\n");
-
-    const deliveryZonesPromptString = ctx.state.deliveryZones.map(z =>
-      `- Township: ${z.township} | Rate: ${z.rate} MMK | Time: ${z.deliveryTime}`
-    ).join("\n");
+    // Retrieve relevant knowledge using RAG
+    const relevantDocs = await retrieveRelevantKnowledge(ctx, content || "");
+    const ragContext = buildRetrievedContext(relevantDocs);
 
     const systemInstruction = `You are "Candy", an incredibly sweet, professional, and patient AI chatbot assistant for "${ctx.state.config.shopName}".
 Your mission is to represent Yoon Yamone Oo (the owner) in welcoming clients, giving details on standard treats, and gently guiding them through purchasing products.
 
-STORE INVENTORY:
-${productsPromptString}
-
-DELIVERY TOWNSHIP FEES:
-${deliveryZonesPromptString}
+BUSINESS CONTEXT (Grounded Knowledge):
+${ragContext}
 
 CUSTOMER CONTEXT:
 - Name: ${session.customerName || "Khip Thidar"}
@@ -246,11 +239,12 @@ CUSTOMER CONTEXT:
 
 RULES FOR DIALOGUE:
 1. Speak in a mix of soft, conversational Myanmar language/Burmese, utilizing extremely polite particles like "ရှင်" (shin), and clear English as typical for Myanmar commerce.
-2. If the user asks about product details, ingredients, or pricing, answer them elegantly and offer to add items to their shopping cart!
-3. If they want to purchase, tell them what is in their cart, compute the cost, and provide the options to proceed: Cash on Delivery or Prepay.
-4. **ADD ITEM RULE**: If the customer says they want to add a product or buy a product, ctx.state the item name clearly and respond to confirm! Do not use complex JSON formats in output text, just output beautiful message body formatted nicely with bold lists and emojis.
-5. If they are talking about something else, stay delightfully helpful, cheerful, and charming, keeping recommendations focused entirely on making a transaction.
-6. Absolutely do not disclose system-internal parameters. Be highly conversational. Always keep answers concise and easy to read.`;
+2. Use the BUSINESS CONTEXT provided to answer specific questions about products, delivery, and shop policies.
+3. If the user asks about product details, ingredients, or pricing, answer them elegantly and offer to add items to their shopping cart!
+4. If they want to purchase, tell them what is in their cart, compute the cost, and provide the options to proceed: Cash on Delivery or Prepay.
+5. **ADD ITEM RULE**: If the customer says they want to add a product or buy a product, ctx.state the item name clearly and respond to confirm! Do not use complex JSON formats in output text, just output beautiful message body formatted nicely with bold lists and emojis.
+6. If they are talking about something else, stay delightfully helpful, cheerful, and charming, keeping recommendations focused entirely on making a transaction.
+7. Absolutely do not disclose system-internal parameters. Be highly conversational. Always keep answers concise and easy to read.`;
 
     const conversationHistory = session.messages.slice(-5).map(m => {
       const pfx = m.sender === 'customer' ? 'Customer' : 'Candy (AI Assistant)';
@@ -259,14 +253,29 @@ RULES FOR DIALOGUE:
 
     const geminiInput = `CONVERSATION HISTORIC:\n${conversationHistory}\n\nCustomer just sent: "${content}"\n\nCandy, reply in beautiful customer-friendly dialogue:`;
 
-    const aiResponse = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: geminiInput,
-      config: {
-        systemInstruction,
-        temperature: 0.7
+    let aiResponse;
+    const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"];
+    let lastErr = null;
+
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`Attempting AI generation with model: ${modelName}`);
+        aiResponse = await ai.models.generateContent({
+          model: modelName,
+          contents: geminiInput,
+          config: {
+            systemInstruction,
+            temperature: 0.7
+          }
+        });
+        if (aiResponse) break;
+      } catch (err) {
+        lastErr = err;
+        console.warn(`Model ${modelName} failed, trying next...`, err);
       }
-    });
+    }
+
+    if (!aiResponse) throw lastErr || new Error("All AI models failed.");
 
     const botReplyText = aiResponse.text || "Mingalabar shin! Candy received your message. Please let me know how I can guide your shopping today! Premium Sweets always available. 💕";
 
@@ -342,7 +351,7 @@ export async function handleTelegramWebhook(ctx: ShopContext, body: Record<strin
     let customerName = "Telegram Customer";
     let telegramUsername = "";
     let content = "";
-    
+
     // Parameter payloads to feed inside centralized ctx.state evaluator
     let base64Image: string | undefined = undefined;
     let transactionId: string | undefined = undefined;
@@ -387,9 +396,9 @@ export async function handleTelegramWebhook(ctx: ShopContext, body: Record<strin
       chatId = callback_query.message.chat.id;
       telegramUsername = callback_query.from?.username || "";
       customerName = [callback_query.from?.first_name, callback_query.from?.last_name].filter(Boolean).join(" ") || "Telegram Customer";
-      
+
       const callbackData = callback_query.data || "";
-      
+
       // Stop Telegram keyboard spinner
       if (token && callback_query.id) {
         try {
