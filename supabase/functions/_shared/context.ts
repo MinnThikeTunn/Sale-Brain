@@ -35,15 +35,27 @@ export async function createShopContextByShopId(shopId: string): Promise<ShopCon
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
   );
 
-  const { data, error } = await supabase
+  // Check new shops table first
+  const { data: shopData } = await supabase
+    .from("shops")
+    .select("owner_id")
+    .eq("shop_id", shopId)
+    .maybeSingle();
+
+  if (shopData?.owner_id) {
+    return createShopContext(shopData.owner_id);
+  }
+
+  // Fallback to legacy business_onboarding
+  const { data: legacyData, error: legacyError } = await supabase
     .from("business_onboarding")
     .select("user_id")
     .eq("shop_id", shopId)
     .single();
 
-  if (error || !data) {
+  if (legacyError || !legacyData) {
     throw new Error(`Shop not found: ${shopId}`);
   }
 
-  return createShopContext(data.user_id);
+  return createShopContext(legacyData.user_id);
 }

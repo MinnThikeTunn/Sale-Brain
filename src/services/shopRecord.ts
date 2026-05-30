@@ -60,6 +60,7 @@ export type OnboardingFormPayload = {
   deliveryMethod: string;
   businessGoal: string;
   botPersonality: string;
+  shopId?: string;
   mainCustomer?: string;
   ageGroup?: string;
   matterMost?: string;
@@ -101,7 +102,7 @@ export function buildOnboardingProfile(
 export async function getShopForOwner(ownerId: string): Promise<ShopRecord | null> {
   const { data, error } = await supabase
     .from("shops")
-    .select("id, owner_id, shop_name, owner_name, phone, address, onboarding_completed, onboarding_profile")
+    .select("id, owner_id, shop_id, shop_name, owner_name, phone, address, onboarding_completed, onboarding_profile")
     .eq("owner_id", ownerId)
     .order("onboarding_completed", { ascending: false })
     .order("updated_at", { ascending: false })
@@ -123,7 +124,7 @@ export async function saveShopOnboarding(
   const phone = (form.phone ?? profile.phone ?? "").trim();
   const address = (form.address ?? profile.business_address ?? "").trim();
 
-  const row = {
+  const row: any = {
     shop_name: form.shopName.trim(),
     owner_name: form.ownerName.trim() || null,
     phone: phone || null,
@@ -133,8 +134,12 @@ export async function saveShopOnboarding(
     updated_at: now,
   };
 
+  if (form.shopId) {
+    row.shop_id = form.shopId;
+  }
+
   const shopColumns =
-    "id, owner_id, shop_name, owner_name, phone, address, onboarding_completed, onboarding_profile";
+    "id, owner_id, shop_id, shop_name, owner_name, phone, address, onboarding_completed, onboarding_profile";
 
   if (existing?.id) {
     const { data, error } = await supabase
