@@ -1,11 +1,13 @@
 export interface Product {
   id: string;
   name: string;
-  category: string;
   price: number;
   description: string;
   stock: number;
   image: string;
+  varies: { key: string; value: string }[];
+  is_on_demand?: boolean;
+  waiting_time?: string;
 }
 
 export interface DeliveryZone {

@@ -64,13 +64,13 @@ export function mutateProducts(action: string, product: Partial<Product> & { id?
     state.products.push({
       id: `prod-${Date.now()}`,
       name: product.name || "New Product",
-      category: product.category || "General",
       price: Number(product.price) || 0,
       stock: Number(product.stock) || 0,
       description: product.description || "",
       image:
         product.image ||
         "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400",
+      varies: product.varies || [],
     });
   } else if (action === "edit" && product.id) {
     state.products = state.products.map((p) =>

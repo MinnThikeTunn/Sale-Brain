@@ -1,11 +1,13 @@
 export interface Product {
   id: string;
   name: string;
-  category: string;
   price: number; // in MMK
   description: string;
   stock: number;
   image: string;
+  varies: { key: string; value: string }[];
+  is_on_demand?: boolean;
+  waiting_time?: string;
 }
 
 export interface DeliveryZone {
@@ -64,6 +66,7 @@ export interface ShopConfig {
   telegramBotToken: string;
   telegramBotUsername: string;
   onboardingCompleted: boolean;
+  productsMigrated?: boolean;
 }
 
 export interface TelegramSession {

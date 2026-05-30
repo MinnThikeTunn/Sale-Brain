@@ -16,47 +16,57 @@
     {
       "id": "prod-1",
       "name": "Pathein Halawa (Premium Butter & Poppy Seed)",
-      "category": "Desserts",
       "price": 4500,
       "description": "Legendary traditional Myanmar sweet treat. Made with pure butter, sticky rice, and roasted poppy seeds.",
       "stock": 45,
-      "image": "https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&q=80&w=400"
+      "image": "https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&q=80&w=400",
+      "varies": [],
+      "is_on_demand": false,
+      "waiting_time": ""
     },
     {
       "id": "prod-2",
       "name": "Royal Myanmar Instant Tea Mix (30 Sachets)",
-      "category": "Beverages",
       "price": 7500,
       "description": "Rich, creamy, and uniquely sweet authentic Myanmar traditional milk tea. Brews instantly.",
       "stock": 30,
-      "image": "https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&q=80&w=400"
+      "image": "https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&q=80&w=400",
+      "varies": [],
+      "is_on_demand": false,
+      "waiting_time": ""
     },
     {
       "id": "prod-3",
       "name": "Handcrafted Pathein Bamboo Parasol (Medium / Ruby Red)",
-      "category": "Lifestyle",
       "price": 24000,
       "description": "Vibrant traditional paper-and-bamboo sun umbrella hand-painted by local artisans in Pathein.",
       "stock": 3,
-      "image": "https://images.unsplash.com/photo-1590073844006-33379778ae09?auto=format&fit=crop&q=80&w=400"
+      "image": "https://images.unsplash.com/photo-1590073844006-33379778ae09?auto=format&fit=crop&q=80&w=400",
+      "varies": [],
+      "is_on_demand": true,
+      "waiting_time": "3-5 days"
     },
     {
       "id": "prod-4",
       "name": "Kyaukpadaung Premium Jaggery Box (Coconut Shreds)",
-      "category": "Snacks",
       "price": 9000,
       "description": "Pure sugar palm nectar drops stuffed with sweet coconut shreds. Perfect with hot green tea.",
       "stock": 25,
-      "image": "https://images.unsplash.com/photo-1608686207856-001b95cf60ca?auto=format&fit=crop&q=80&w=400"
+      "image": "https://images.unsplash.com/photo-1608686207856-001b95cf60ca?auto=format&fit=crop&q=80&w=400",
+      "varies": [],
+      "is_on_demand": false,
+      "waiting_time": ""
     },
     {
       "id": "prod-5",
       "name": "Shan Hills Wildflower Honey (500ml Bottled)",
-      "category": "Beverages",
       "price": 12000,
       "description": "100% natural organic blossom honey wild-harvested from the dense forests of Southern Shan State.",
       "stock": 12,
-      "image": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&q=80&w=400"
+      "image": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&q=80&w=400",
+      "varies": [],
+      "is_on_demand": false,
+      "waiting_time": ""
     }
   ],
   "deliveryZones": [],
