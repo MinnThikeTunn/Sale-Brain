@@ -466,11 +466,11 @@ export function TelegramSimulator({
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
               {deliveryZones.map((zone) => (
                 <button
-                  key={zone.township}
-                  onClick={() => handleTownshipSelection(zone.township, 'prepay')}
+                  key={zone.id}
+                  onClick={() => handleTownshipSelection(zone.township_name, 'prepay')}
                   className="bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/30 text-emerald-300 text-[10px] px-2.5 py-1 rounded-full whitespace-nowrap cursor-pointer flex items-center gap-1"
                 >
-                  <MapPin size={10} /> {zone.township} (+{zone.rate} MMK)
+                  <MapPin size={10} /> {zone.township_name} (+{zone.rate} MMK)
                 </button>
               ))}
             </div>

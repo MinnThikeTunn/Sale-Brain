@@ -39,9 +39,17 @@ import { PublicShop } from "./components/PublicShop";
 import { useAuth } from "./contexts/AuthContext";
 import { invokeApi } from "./services/api";
 import { getShopState, saveShopState } from "./services/shopState";
+import {
+  emptyOnboardingForm,
+  getShopForOwner,
+  shopRecordToFormData,
+} from "./services/shopRecord";
+import { getProducts, migrateProductsFromJson, upsertProduct, deleteProduct } from "./services/productService";
+import type { OnboardingFormState, ShopRecord } from "./types";
 import { Product, DeliveryZone, Order, ShopConfig, TelegramSession, SystemState } from "./types";
 import * as store from "./services/clientStore";
 import { supabase } from "./utils/supabase";
+import { fetchDeliveryMatrix, addDeliveryZone, deleteDeliveryZone } from "./services/deliveryMatrixApi";
 import { buildShopPublicUrl } from "./utils/shopId";
 
 // Complete localized dictionary for total English & Burmese translation sync
@@ -133,8 +141,6 @@ const dict = {
     storeNameLabel: "Store Name:",
     smeOwnerNameLabel: "SME Owner Name:",
     contactPhoneLabel: "Contact Phone Number:",
-    customBotTokenLabel: "Custom Bot Token ID:",
-    setViaBotFather: "Set via @BotFather",
     telegramBotUsernameLabel: "Telegram Bot Username (@):",
     saveStoreSettingsBtn: "SAVE STORE SETTINGS AND ACTIVATED TELEGRAM VIRTUAL DEPLOY",
     liveSupportRoomHeader: "SME CRM LIVE SUPPORT ROOM",
@@ -258,8 +264,6 @@ const dict = {
     storeNameLabel: "ဆိုင်အမည် -",
     smeOwnerNameLabel: "ဆိုင်ရှင်အမည် -",
     contactPhoneLabel: "ဆက်သွယ်ရန် ဖုန်းနံပါတ် -",
-    customBotTokenLabel: "ရရှိထားသော တယ်လီဂရမ် Bot သော့ချက် (Token ID) -",
-    setViaBotFather: "တယ်လီဂရမ် @BotFather တွင် ရယူပါ",
     telegramBotUsernameLabel: "တယ်လီဂရမ် Bot ယူဇာနိမ်း (@) -",
     saveStoreSettingsBtn: "ဆိုင်အချက်အလက် စနစ် သိမ်းဆည်းပြီး တယ်လီဂရမ်နှင့် ချိတ်ဆက်မည်",
     liveSupportRoomHeader: "ဆိုင်ရှင် တိုက်ရိုက် ဝယ်သူစကားပြောခန်း (CRM)",
@@ -301,7 +305,10 @@ const dict = {
 export default function App() {
   const { user, loading: authLoading, signOut } = useAuth();
   const [lang, setLang] = useState<"en" | "my">("en");
-  const [showLandingPage, setShowLandingPage] = useState<boolean>(true);
+  const [showLandingPage, setShowLandingPage] = useState<boolean>(() => {
+    const stored = localStorage.getItem('sales_brain_visited');
+    return stored !== 'true';
+  });
   const [showSimulator, setShowSimulator] = useState<boolean>(false);
 
   // Simple routing for public shop view
@@ -324,6 +331,8 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<string>("default_customer");
 
   // Onboarding / Config Draft state
+  const [shopRecord, setShopRecord] = useState<ShopRecord | null>(null);
+  const [editingOnboarding, setEditingOnboarding] = useState(false);
   const [configDraft, setConfigDraft] = useState<ShopConfig | null>(null);
   const [messengerStatus, setMessengerStatus] = useState<{ connected: boolean; pages: any[] } | null>(null);
   const [loadingMessengerStatus, setLoadingMessengerStatus] = useState<boolean>(false);
@@ -343,18 +352,36 @@ export default function App() {
   // New Product Form state
   const [prodForm, setProdForm] = useState({
     name: "",
-    category: "Desserts",
     price: 4500,
     description: "",
     stock: 25,
-    image: ""
+    image: "",
+    varies: [] as { key: string; value: string }[],
+    is_on_demand: false,
+    waiting_time: ""
   });
 
   // New Zone Form state
   const [newZone, setNewZone] = useState({
-    township: "",
+    township_name: "",
+    region: "",
+    division: "",
     rate: 2000,
-    deliveryTime: "1-2 Days"
+    estimated_transit_timeline: "1-2 Days"
+  });
+
+  // Delivery zones from API
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
+  const [deliveryZonesLoading, setDeliveryZonesLoading] = useState(false);
+  const [deliveryZonesPage, setDeliveryZonesPage] = useState(1);
+  const [deliveryZonesSearch, setDeliveryZonesSearch] = useState("");
+  const [deliveryZonesPagination, setDeliveryZonesPagination] = useState({
+    total_records: 0,
+    current_page: 1,
+    limit: 10,
+    total_pages: 0,
+    has_next: false,
+    has_prev: false
   });
 
   // Owner custom live reply states
@@ -369,30 +396,47 @@ export default function App() {
       // 1. Fetch JSON state from storage
       const data = await getShopState(user.id);
       
-      // 2. Fetch onboarding data from DB (Source of Truth for completion)
-      // Use ordering by onboarding_id desc to get the most recent record if duplicates exist
-      const { data: onboardingData, error: dbError } = await supabase
-        .from('business_onboarding')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('onboarding_id', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (dbError) {
-        console.warn("Database fetch error:", dbError);
+      // 2. Sync shop row from Postgres (source of truth for onboarding)
+      try {
+        const shopRow = await getShopForOwner(user.id);
+        if (shopRow) {
+          setShopRecord(shopRow);
+          data.config.onboardingCompleted = shopRow.onboarding_completed;
+          if (shopRow.shop_name) {
+            data.config.shopName = shopRow.shop_name;
+          }
+          if (shopRow.owner_name) {
+            data.config.ownerName = shopRow.owner_name;
+          }
+          const shopPhone =
+            shopRow.phone?.trim() ||
+            shopRow.onboarding_profile?.phone?.trim() ||
+            "";
+          if (shopPhone) {
+            data.config.phone = shopPhone;
+          }
+        } else {
+          setShopRecord(null);
+        }
+      } catch (dbError) {
+        console.warn("Shop fetch error:", dbError);
       }
 
-      if (onboardingData) {
-        // Sync completion status and business name from DB to the state object
-        data.config.onboardingCompleted = onboardingData.onboarding_completed;
-        data.config.shopId = onboardingData.shop_id;
-        if (onboardingData.business_name) {
-          data.config.shopName = onboardingData.business_name;
+      // 3. Migrate products from JSON to table if needed
+      if (data.products && data.products.length > 0 && !data.config.productsMigrated) {
+        const result = await migrateProductsFromJson(user.id, data.products);
+        if (result.success) {
+          data.products = [];
+          data.config.productsMigrated = true;
+          await saveShopState(user.id, data);
         }
       }
 
-      // 3. Update states ONLY after all sync logic is done
+      // 4. Fetch products from table
+      const products = await getProducts(user.id);
+      data.products = products;
+
+      // 5. Update states ONLY after all sync logic is done
       setStoreState(data);
 
       setConfigDraft((prev) => {
@@ -414,7 +458,9 @@ export default function App() {
 
   const persistState = async (next: SystemState) => {
     if (!user) return;
-    await saveShopState(user.id, next);
+    // Exclude products from JSON storage - they live in the products table now
+    const stateToSave = { ...next, products: [] };
+    await saveShopState(user.id, stateToSave);
     setStoreState(next);
   };
 
@@ -430,17 +476,47 @@ export default function App() {
     }
   };
 
+  const fetchDeliveryZonesFromApi = async () => {
+    setDeliveryZonesLoading(true);
+    const shopAddress =
+      shopRecord?.address?.trim() ||
+      shopRecord?.onboarding_profile?.business_address?.trim() ||
+      "";
+    try {
+      const result = await fetchDeliveryMatrix(
+        deliveryZonesPage,
+        10,
+        deliveryZonesSearch,
+        shopAddress
+      );
+      setDeliveryZones(result.data);
+      setDeliveryZonesPagination(result.pagination);
+    } catch (err) {
+      console.error("Failed to fetch delivery zones:", err);
+      showToast(
+        lang === "my" 
+          ? "ပို့ဆောင်ခ အချက်အလက်များ ရယူ၍မရပါ" 
+          : "Failed to load delivery zones", 
+        "error"
+      );
+    } finally {
+      setDeliveryZonesLoading(false);
+    }
+  };
+
   // Run initial state loading and setup periodic fast poll to grab customer simulator inputs immediately!
   useEffect(() => {
+    if (user && !authLoading) {
+      localStorage.setItem('sales_brain_visited', 'true');
+    }
     if (!user) return;
     fetchState();
-
     const interval = setInterval(() => {
       fetchState(true);
     }, 4500);
 
     return () => clearInterval(interval);
-  }, [user?.id]);
+  }, [user?.id, authLoading]);
 
   // Ensure the bot-config form keeps a stable draft while typing
   useEffect(() => {
@@ -453,13 +529,26 @@ export default function App() {
     }
   }, [activeTab, storeState, botConnectionTab]);
 
+  // Fetch delivery zones when tab, page, search, or shop address changes
+  useEffect(() => {
+    if (activeTab === "delivery") {
+      fetchDeliveryZonesFromApi();
+    }
+  }, [
+    activeTab,
+    deliveryZonesPage,
+    deliveryZonesSearch,
+    shopRecord?.address,
+    shopRecord?.onboarding_profile?.business_address,
+  ]);
+
   // Fetch AI strategy when the selected language changes
   useEffect(() => {
     fetchAiStrategy();
   }, [lang]);
 
   // Display toast alerts
-  const showToast = (text: string, type: "success" | "info" = "success") => {
+  const showToast = (text: string, type: "success" | "info" | "error" = "success") => {
     setShowNotification({ text, type });
     setTimeout(() => {
       setShowNotification(null);
@@ -539,32 +628,23 @@ export default function App() {
     setSavingAction(true);
     try {
       const isEdit = !!editingProduct;
-      if (!storeState || !user) return;
-      const next = { ...storeState };
-      if (isEdit && editingProduct) {
-        next.products = next.products.map((p) =>
-          p.id === editingProduct.id
-            ? {
-                ...editingProduct,
-                ...prodForm,
-                price: Number(prodForm.price) || 0,
-                stock: Number(prodForm.stock) || 0,
-              }
-            : p
-        );
-      } else {
-        next.products.push({
-          ...prodForm,
-          id: `prod-${Date.now()}`,
-          price: Number(prodForm.price) || 0,
-          stock: Number(prodForm.stock) || 0,
-          image:
-            prodForm.image ||
-            "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400",
-        });
-      }
-      await persistState(next);
-      {
+      if (!user) return;
+
+      const productData = {
+        id: editingProduct?.id,
+        name: prodForm.name,
+        price: Number(prodForm.price) || 0,
+        description: prodForm.description,
+        stock: Number(prodForm.stock) || 0,
+        image: prodForm.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400",
+        varies: prodForm.varies,
+        is_on_demand: prodForm.is_on_demand,
+        waiting_time: prodForm.waiting_time,
+      };
+
+      const result = await upsertProduct(user.id, productData);
+      
+      if (result.success) {
         showToast(
           isEdit 
             ? (lang === "my" ? "ကုန်ပစ္စည်းအချက်အလက် ပြင်ဆင်မှု ပြီးမြောက်ပါပြီ။" : "Product information updated successfully!")
@@ -573,8 +653,7 @@ export default function App() {
         );
         setShowProductModal(false);
         setEditingProduct(null);
-        // Clear form
-        setProdForm({ name: "", category: "Desserts", price: 4500, description: "", stock: 25, image: "" });
+        setProdForm({ name: "", price: 4500, description: "", stock: 25, image: "", varies: [], is_on_demand: false, waiting_time: "" });
         fetchState();
       }
     } catch (err) {
@@ -591,13 +670,15 @@ export default function App() {
 
     if (confirm(confirmMsg)) {
       try {
-        if (!storeState || !user) return;
-        const next = {
-          ...storeState,
-          products: storeState.products.filter((p) => p.id !== prod.id),
-        };
-        await persistState(next);
-        showToast(lang === "my" ? "ကုန်ပစ္စည်း ဖျက်ပြီးပါပြီ။" : "Product deleted successfully.", "success");
+        if (!user) return;
+        const result = await deleteProduct(prod.id, user.id);
+        if (result.success) {
+          showToast(
+            lang === "my" ? "ကုန်ပစ္စည်းကို ဖျက်ပြီးပါပြီ။" : "Product removed from catalog.",
+            "info"
+          );
+          fetchState();
+        }
       } catch (err) {
         console.error(err);
       }
@@ -606,53 +687,52 @@ export default function App() {
 
   // Delivery zone Matrix adjustments
   const handleAddZone = async () => {
-    if (!newZone.township.trim()) return;
+    if (!newZone.township_name.trim()) return;
     try {
-      if (!storeState || !user) return;
-      const next = {
-        ...storeState,
-        deliveryZones: [
-          ...storeState.deliveryZones,
-          {
-            township: newZone.township,
-            rate: Number(newZone.rate) || 0,
-            deliveryTime: newZone.deliveryTime || "1-2 Days",
-          },
-        ],
-      };
-      await persistState(next);
-      {
-        showToast(
-          lang === "my" 
-            ? `${newZone.township} အတွက် ပို့ဆောင်ခ သတ်မှတ်ပြီးပါပြီ။` 
-            : `Added township rate mapping for: ${newZone.township}`, 
-          "success"
-        );
-        setNewZone({ township: "", rate: 2000, deliveryTime: "1-2 Days" });
-        fetchState();
-      }
+      await addDeliveryZone({
+        township_name: newZone.township_name,
+        region: newZone.region,
+        division: newZone.division,
+        rate: Number(newZone.rate) || 0,
+        estimated_transit_timeline: newZone.estimated_transit_timeline || "1-2 Days",
+      });
+      showToast(
+        lang === "my" 
+          ? `${newZone.township_name} အတွက် ပို့ဆောင်ခ သတ်မှတ်ပြီးပါပြီ။` 
+          : `Added township rate mapping for: ${newZone.township_name}`, 
+        "success"
+      );
+      setNewZone({ township_name: "", region: "", division: "", rate: 2000, estimated_transit_timeline: "1-2 Days" });
+      fetchDeliveryZonesFromApi();
     } catch (err) {
       console.error(err);
+      showToast(
+        lang === "my" 
+          ? "ပို့ဆောင်ခ သတ်မှတ်၍မရပါ" 
+          : "Failed to add delivery zone", 
+        "error"
+      );
     }
   };
 
-  const handleDeleteZone = async (idx: number, name: string) => {
+  const handleDeleteZone = async (id: string, name: string) => {
     try {
-      if (!storeState || !user) return;
-      const zones = [...storeState.deliveryZones];
-      zones.splice(idx, 1);
-      await persistState({ ...storeState, deliveryZones: zones });
-      {
-        showToast(
-          lang === "my"
-            ? `${name} ပို့ဆောင်ခ သတ်မှတ်ချက်ကို ဖျက်ထုတ်ပြီးပါပြီ။`
-            : `Removed township shipping rule: ${name}`,
-          "info"
-        );
-        fetchState();
-      }
+      await deleteDeliveryZone(id);
+      showToast(
+        lang === "my"
+          ? `${name} ပို့ဆောင်ခ သတ်မှတ်ချက်ကို ဖျက်ထုတ်ပြီးပါပြီ။`
+          : `Removed township shipping rule: ${name}`,
+        "info"
+      );
+      fetchDeliveryZonesFromApi();
     } catch (err) {
       console.error(err);
+      showToast(
+        lang === "my"
+          ? "ပို့ဆောင်ခ ဖျက်၍မရပါ"
+          : "Failed to delete delivery zone",
+        "error"
+      );
     }
   };
 
@@ -758,12 +838,15 @@ export default function App() {
     );
   }
 
-  if (!user) {
-    return <AuthPage />;
+  if (showLandingPage && !user) {
+    return <LandingPage onEnter={() => {
+      localStorage.setItem('sales_brain_visited', 'true');
+      setShowLandingPage(false);
+    }} />;
   }
 
-  if (showLandingPage) {
-    return <LandingPage onEnter={() => setShowLandingPage(false)} />;
+  if (!user) {
+    return <AuthPage />;
   }
 
   if (loading || !storeState) {
@@ -781,69 +864,75 @@ export default function App() {
     );
   }
 
-  // Intercept workflow with Onboarding Screen
-  if (!storeState.config.onboardingCompleted) {
+  const onboardingInitialForm: OnboardingFormState = shopRecord
+    ? shopRecordToFormData(shopRecord)
+    : emptyOnboardingForm(storeState.config.shopName, storeState.config.ownerName);
+
+  const handleWizardComplete = async (
+    profile: { shopName: string; ownerName: string; phone: string; businessAddress: string },
+    aiSummary: string,
+    wasEdit: boolean
+  ) => {
+    const updatedState = {
+      ...storeState,
+      config: {
+        ...storeState.config,
+        shopName: profile.shopName,
+        ownerName: profile.ownerName,
+        phone: profile.phone || storeState.config.phone,
+        onboardingCompleted: true,
+      },
+    };
+    setStoreState(updatedState);
+    setAiAnalysisText(aiSummary);
+    setEditingOnboarding(false);
+
+    try {
+      await invokeApi("onboarding", {
+        ...storeState.config,
+        shopName: profile.shopName,
+        ownerName: profile.ownerName,
+        phone: profile.phone || storeState.config.phone,
+        onboardingCompleted: true,
+      });
+      await saveShopState(user.id, updatedState);
+      showToast(
+        wasEdit
+          ? lang === "my"
+            ? "လုပ်ငန်းအချက်အလက် ပြင်ဆင်ပြီးပါပြီ။ 🟢"
+            : "Business profile updated successfully. 🟢"
+          : lang === "my"
+            ? "အချက်အလက် စနစ်သိမ်းဆည်းအောင်မြင်ပြီး လုပ်ငန်းဒိုင်ယာလော့ခ် ဖွင့်လှစ်ပါပြီ။ 🟢"
+            : "Setup completed! Welcome to your SME dashboard. 🟢",
+        "success"
+      );
+      await fetchState(true);
+    } catch (err) {
+      console.error("[App] Saving onboarding stats failed", err);
+      setStoreState(updatedState);
+    }
+  };
+
+  // First-time setup or edit profile from dashboard
+  if (!storeState.config.onboardingCompleted || editingOnboarding) {
     return (
       <Onboarding
+        key={editingOnboarding ? `edit-${shopRecord?.id ?? "shop"}` : "setup"}
         lang={lang}
-        initialShopName={storeState.config.shopName}
-        initialOwnerName={storeState.config.ownerName}
+        isEditMode={editingOnboarding}
+        initialFormData={onboardingInitialForm}
         onLangChange={setLang}
-        onComplete={async (profile, aiSummary) => {
-          // Instantly patch the frontend memory block for zero-delay entry feel
-          const updatedState = {
-            ...storeState,
-            config: {
-              ...storeState.config,
-              shopName: profile.shopName,
-              ownerName: profile.ownerName,
-              onboardingCompleted: true,
-              shopId: profile.shopId
-            }
-          };
-          setStoreState(updatedState);
-          setAiAnalysisText(aiSummary);
-
-          // Persist settings to backing JSON state
-          try {
-            // First, trigger backend onboarding (updates JSON + sets up Telegram)
-            await invokeApi("onboarding", {
-              ...storeState.config,
-              shopName: profile.shopName,
-              ownerName: profile.ownerName,
-              onboardingCompleted: true,
-              shopId: profile.shopId,
-            });
-            
-            // Second, save full state to storage
-            await saveShopState(user.id, updatedState);
-            
-            // Third, update local state
-            setStoreState(updatedState);
-            setAiAnalysisText(aiSummary);
-
-            showToast(
-              lang === "my"
-                ? "အချက်အလက် စနစ်သိမ်းဆည်းအောင်မြင်ပြီး လုပ်ငန်းဒိုင်ယာလော့ခ် ဖွင့်လှစ်ပါပြီ။ 🟢"
-                : "Setup Completed! Welcome to your SME dashboard dashboard. 🟢",
-              "success"
-            );
-            
-            // Finally, refresh state to ensure everything is in sync
-            await fetchState(true);
-          } catch (err) {
-            console.error("[App] Saving onboarding stats failed", err);
-            // Fallback: still set local state to allow entry if only persistence failed
-            setStoreState(updatedState);
-          }
-        }}
+        onCancelEdit={() => setEditingOnboarding(false)}
+        onComplete={(profile, aiSummary) =>
+          handleWizardComplete(profile, aiSummary, editingOnboarding)
+        }
       />
     );
   }
 
   // Derived dashboard analytics values
   const productsCount = storeState.products.length;
-  const deliveryZonesCount = storeState.deliveryZones.length;
+  const deliveryZonesCount = deliveryZones.length;
   const verifiedOrders = storeState.orders.filter(o => o.status === "confirmed" || o.status === "completed");
   const unverifiedPrepaysCount = storeState.orders.filter(o => o.status === "verifying" && o.paymentMethod === "prepay").length;
   const alertLowStock = storeState.products.filter(p => p.stock <= 5);
@@ -908,37 +997,26 @@ export default function App() {
           {/* Edit Business Profile / Onboarding Configuration Desk */}
           <button
             onClick={async () => {
-              const confirmMsg = lang === "my" 
-                ? "လုပ်ငန်းအချက်အလက်များကို ပြန်လည်ပြင်ဆင်လိုပါသလား?" 
+              const confirmMsg = lang === "my"
+                ? "လုပ်ငန်းအချက်အလက်များကို ပြန်လည်ပြင်ဆင်လိုပါသလား?"
                 : "Would you like to edit your business profile details?";
-              
+
               if (!window.confirm(confirmMsg)) return;
 
-              // 1. Update local state immediately
-              setStoreState((prev) => prev ? ({
-                ...prev,
-                config: {
-                  ...prev.config,
-                  onboardingCompleted: false
-                }
-              }) : null);
-
-              // 2. Update PostgreSQL (Source of Truth)
               try {
-                await supabase
-                  .from('business_onboarding')
-                  .update({ onboarding_completed: false })
-                  .eq('user_id', user.id);
-                
-                // 3. Update JSON storage
-                await invokeApi("onboarding", {
-                  ...storeState.config,
-                  onboardingCompleted: false,
-                });
-
-                showToast(lang === "my" ? "ပြင်ဆင်ရန် အဆင်သင့်ဖြစ်ပါပြီ။" : "Ready to edit profile.", "info");
+                const freshShop = await getShopForOwner(user.id);
+                if (freshShop) {
+                  setShopRecord(freshShop);
+                }
+                setEditingOnboarding(true);
               } catch (e) {
-                console.warn("Could not sync onboarding reset:", e);
+                console.warn("Could not load profile for edit:", e);
+                showToast(
+                  lang === "my"
+                    ? "အချက်အလက် ဖွင့်မရပါ။ ထပ်စမ်းကြည့်ပါ။"
+                    : "Could not load profile. Please try again.",
+                  "info"
+                );
               }
             }}
             className="flex items-center gap-1.5 text-[9px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 p-1.5 px-3 rounded-lg border border-indigo-200 transition-colors cursor-pointer"
@@ -1366,7 +1444,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     setEditingProduct(null);
-                    setProdForm({ name: "", category: "Desserts", price: 4500, description: "", stock: 25, image: "" });
+                    setProdForm({ name: "", price: 4500, description: "", stock: 25, image: "", varies: [], is_on_demand: false, waiting_time: "" });
                     setShowProductModal(true);
                   }}
                   className="bg-black hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
@@ -1392,10 +1470,23 @@ export default function App() {
 
                     <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                       <div>
-                        <div className="text-[8px] font-bold tracking-wider font-mono text-indigo-600 uppercase">
-                          {t("categories")[p.category as "Desserts" | "Beverages" | "Lifestyle" | "Snacks"] || p.category}
-                        </div>
-                        <h4 className="text-xs font-semibold text-slate-800 mt-1 line-clamp-1">{p.name}</h4>
+                        <h4 className="text-xs font-semibold text-slate-800 line-clamp-1">{p.name}</h4>
+{p.varies && p.varies.length > 0 && (
+                           <div className="flex flex-wrap gap-1.5 mt-2">
+                             {p.varies.slice(0, 3).map((vary, idx) => (
+                               <div key={idx} className="inline-flex items-center gap-1 text-[9px] font-medium bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200/60 px-2 py-1 rounded-lg">
+                                 <span className="text-indigo-500 font-semibold">{vary.key}</span>
+                                 <span className="text-slate-300">•</span>
+                                 <span className="text-indigo-700 font-semibold">{vary.value}</span>
+                               </div>
+                             ))}
+                             {p.varies.length > 3 && (
+                               <span className="text-[9px] font-medium text-slate-500 bg-slate-100/80 border border-slate-200/60 px-2 py-1 rounded-lg">
+                                 +{p.varies.length - 3}
+                               </span>
+                             )}
+                           </div>
+                         )}
                       </div>
 
                       <div className="pt-2 border-t border-slate-100/80 flex items-center justify-between text-[11px]">
@@ -1415,11 +1506,13 @@ export default function App() {
                             setEditingProduct(p);
                             setProdForm({
                               name: p.name,
-                              category: p.category,
                               price: p.price,
                               description: p.description,
                               stock: p.stock,
-                              image: p.image
+                              image: p.image,
+                              varies: p.varies || [],
+                              is_on_demand: p.is_on_demand || false,
+                              waiting_time: p.waiting_time || ""
                             });
                             setShowProductModal(true);
                           }}
@@ -1468,32 +1561,16 @@ export default function App() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-semibold text-slate-400 block uppercase">{t("categoryLabel")}</label>
-                          <select
-                            value={prodForm.category}
-                            onChange={(e) => setProdForm({ ...prodForm, category: e.target.value })}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          >
-                            <option value="Desserts">Sweet Desserts & Cakes</option>
-                            <option value="Beverages">Artisanal Drinks & Mixes</option>
-                            <option value="Lifestyle">Traditional Arts & Crafts</option>
-                            <option value="Snacks">Cracker Snacks</option>
-                          </select>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-semibold text-slate-400 block uppercase">{t("unitPriceLabel")}</label>
-                          <input
-                            type="number"
-                            required
-                            value={prodForm.price}
-                            onChange={(e) => setProdForm({ ...prodForm, price: Number(e.target.value) })}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            placeholder="e.g., 4500"
-                          />
-                        </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-semibold text-slate-400 block uppercase">{t("unitPriceLabel")}</label>
+                        <input
+                          type="number"
+                          required
+                          value={prodForm.price}
+                          onChange={(e) => setProdForm({ ...prodForm, price: Number(e.target.value) })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          placeholder="e.g., 4500"
+                        />
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
@@ -1567,6 +1644,91 @@ export default function App() {
                         />
                       </div>
 
+                      {/* Varies Section */}
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-semibold text-slate-400 block uppercase">
+                          {lang === "my" ? "အမျိုးအစားများ" : "VARIES"}
+                        </label>
+                        <div className="space-y-2">
+                          {prodForm.varies.map((vary, idx) => (
+                            <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                              <input
+                                type="text"
+                                value={vary.key}
+                                onChange={(e) => {
+                                  const updated = [...prodForm.varies];
+                                  updated[idx].key = e.target.value;
+                                  setProdForm({ ...prodForm, varies: updated });
+                                }}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                placeholder={lang === "my" ? "အမည်" : "Key (e.g., Size)"}
+                              />
+                              <input
+                                type="text"
+                                value={vary.value}
+                                onChange={(e) => {
+                                  const updated = [...prodForm.varies];
+                                  updated[idx].value = e.target.value;
+                                  setProdForm({ ...prodForm, varies: updated });
+                                }}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                placeholder={lang === "my" ? "တန်ဖိုး" : "Value (e.g., 500g)"}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = prodForm.varies.filter((_, i) => i !== idx);
+                                  setProdForm({ ...prodForm, varies: updated });
+                                }}
+                                className="text-rose-600 hover:text-rose-700 p-2 rounded-lg hover:bg-rose-50 transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProdForm({ ...prodForm, varies: [...prodForm.varies, { key: "", value: "" }] });
+                            }}
+                            className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 py-2 rounded-lg text-[10px] font-bold tracking-wide transition-all cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            <Plus size={12} /> {lang === "my" ? "အမျိုးအစား ထည့်ရန်" : "Add Varies"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* On Demand Toggle */}
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={prodForm.is_on_demand}
+                            onChange={(e) => setProdForm({ ...prodForm, is_on_demand: e.target.checked, waiting_time: e.target.checked ? prodForm.waiting_time : "" })}
+                            className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                          />
+                          <span className="text-[11px] font-semibold text-slate-700">
+                            {lang === "my" ? "အော်ဒါအလိုက် ပြုလုပ်ရန်" : "On Demand"}
+                          </span>
+                        </label>
+                      </div>
+
+                      {/* Conditional Waiting Time Input */}
+                      {prodForm.is_on_demand && (
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-semibold text-slate-400 block uppercase">
+                            {lang === "my" ? "စောင့်ဆိုင်းရမည့်အချိန်" : "WAITING TIME"}
+                          </label>
+                          <input
+                            type="text"
+                            value={prodForm.waiting_time}
+                            onChange={(e) => setProdForm({ ...prodForm, waiting_time: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            placeholder={lang === "my" ? "ဥပမာ - ၂ ရက်" : "e.g., 2 days"}
+                          />
+                        </div>
+                      )}
+
                       <button
                         type="submit"
                         disabled={savingAction}
@@ -1595,8 +1757,8 @@ export default function App() {
                     <label className="text-[9px] text-[#475569] block font-mono font-bold uppercase">{t("townshipNameLabel")}</label>
                     <input
                       type="text"
-                      value={newZone.township}
-                      onChange={(e) => setNewZone({ ...newZone, township: e.target.value })}
+                      value={newZone.township_name}
+                      onChange={(e) => setNewZone({ ...newZone, township_name: e.target.value })}
                       placeholder="e.g., Yankin, Tamwe, North Dagon"
                       className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-slate-800"
                     />
@@ -1621,36 +1783,82 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Search Input */}
+              <div className="bg-white border border-slate-200/60 p-4 rounded-2xl shadow-sm">
+                <input
+                  type="text"
+                  value={deliveryZonesSearch}
+                  onChange={(e) => {
+                    setDeliveryZonesSearch(e.target.value);
+                    setDeliveryZonesPage(1);
+                  }}
+                  placeholder={lang === "my" ? "မြို့နယ်အမည်ရှာရန်..." : "Search township name..."}
+                  className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-slate-800 text-xs"
+                />
+              </div>
+
               {/* Township list grid */}
               <div className="bg-white border border-slate-200/60 rounded-2xl overflow-hidden text-xs shadow-sm">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] uppercase font-mono tracking-wider font-semibold text-slate-500">
-                      <th className="p-3">{t("matchedTownship")}</th>
-                      <th className="p-3">{t("rateLabel")}</th>
-                      <th className="p-3">{t("estimatedTransit")}</th>
-                      <th className="p-3 text-center">{t("settingsActions")}</th>
+                      <th className="p-3 w-1/3">{t("matchedTownship")}</th>
+                      <th className="p-3 w-1/3">{t("rateLabel")}</th>
+                      <th className="p-3 w-1/3">{t("estimatedTransit")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white text-slate-600 font-mono">
-                    {storeState.deliveryZones.map((zone, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 transition-all">
-                        <td className="p-3 font-bold text-slate-800">{zone.township}</td>
-                        <td className="p-3 text-emerald-600 font-bold">{zone.rate.toLocaleString()} MMK</td>
-                        <td className="p-3 text-slate-500">{zone.deliveryTime}</td>
-                        <td className="p-3 text-center">
-                          <button
-                            onClick={() => handleDeleteZone(idx, zone.township)}
-                            className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-[9px] px-2.5 py-1 rounded-md border border-rose-150 cursor-pointer"
-                          >
-                            {t("removeRule")}
-                          </button>
+                    {deliveryZonesLoading ? (
+                      <tr>
+                        <td colSpan={3} className="p-8 text-center text-slate-400">
+                          <RefreshCw size={16} className="animate-spin inline-block mr-2" />
+                          Loading...
                         </td>
                       </tr>
-                    ))}
+                    ) : deliveryZones.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="p-8 text-center text-slate-400">
+                          No delivery zones found
+                        </td>
+                      </tr>
+                    ) : (
+                      deliveryZones.map((zone) => (
+<tr key={zone.id} className="hover:bg-slate-50/50 transition-all">
+                          <td className="p-3 font-bold text-slate-800 w-1/3">{zone.township_name}</td>
+                          <td className="p-3 text-emerald-600 font-bold w-1/3">{zone.rate.toLocaleString()} MMK</td>
+                          <td className="p-3 text-slate-500 w-1/3">{zone.estimated_transit_timeline}</td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
+
+              {/* Pagination Controls */}
+              {deliveryZonesPagination.total_pages > 1 && (
+                <div className="flex items-center justify-between bg-white border border-slate-200/60 rounded-2xl p-4 text-xs">
+                  <div className="text-slate-500 font-mono">
+                    Page {deliveryZonesPagination.current_page} of {deliveryZonesPagination.total_pages} 
+                    ({deliveryZonesPagination.total_records} total)
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setDeliveryZonesPage(p => p - 1)}
+                      disabled={!deliveryZonesPagination.has_prev}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-bold"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setDeliveryZonesPage(p => p + 1)}
+                      disabled={!deliveryZonesPagination.has_next}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-bold"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1856,36 +2064,19 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center">
-                        <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("customBotTokenLabel")}</label>
-                        <span className="text-[8px] font-mono text-indigo-500 select-none bg-indigo-50 px-1 rounded">{t("setViaBotFather")}</span>
-                      </div>
-                      <input
-                        type="text"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono text-[9px]"
-                        value={storeState.config.telegramBotToken}
-                        onChange={(e) => setStoreState({
-                          ...storeState,
-                          config: { ...storeState.config, telegramBotToken: e.target.value }
-                        })}
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("telegramBotUsernameLabel")}</label>
-                      <input
-                        type="text"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono"
-                        value={storeState.config.telegramBotUsername}
-                        onChange={(e) => setStoreState({
-                          ...storeState,
-                          config: { ...storeState.config, telegramBotUsername: e.target.value }
-                        })}
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("telegramBotUsernameLabel")}</label>
+                    <input
+                      type="text"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono"
+                      value={storeState.config.telegramBotUsername}
+                      onChange={(e) => setStoreState({
+                        ...storeState,
+                        config: { ...storeState.config, telegramBotUsername: e.target.value }
+                      })}
+                    />
                   </div>
+
 
                   <button
                     type="submit"
@@ -2058,7 +2249,7 @@ export default function App() {
             <TelegramSimulator
               session={activeSession}
               products={storeState.products}
-              deliveryZones={storeState.deliveryZones}
+              deliveryZones={deliveryZones}
               onStateUpdated={() => fetchState(true)}
               onSendReply={async (text) => {
                 fetchState(true);

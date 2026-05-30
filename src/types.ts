@@ -1,17 +1,22 @@
 export interface Product {
   id: string;
   name: string;
-  category: string;
   price: number; // in MMK
   description: string;
   stock: number;
   image: string;
+  varies: { key: string; value: string }[];
+  is_on_demand?: boolean;
+  waiting_time?: string;
 }
 
 export interface DeliveryZone {
-  township: string;
+  id: string;
+  township_name: string;
+  region: string;
+  division: string;
   rate: number;
-  deliveryTime: string; // e.g., "1-2 Days"
+  estimated_transit_timeline: string;
 }
 
 export interface OrderItem {
@@ -62,6 +67,7 @@ export interface ShopConfig {
   telegramBotUsername: string;
   onboardingCompleted: boolean;
   shopId?: string;
+  productsMigrated?: boolean;
 }
 
 export interface TelegramSession {
@@ -76,6 +82,55 @@ export interface TelegramSession {
   liveTakeoverActive: boolean;
   activeOrderId?: string;
   tempPayMethod?: string;
+}
+
+/** Stored in shops.onboarding_profile (jsonb) */
+export interface OnboardingProfile {
+  business_type: string;
+  mainly_sell: string;
+  main_customer: string;
+  age_group: string;
+  matter_most: string;
+  marketing_method: string;
+  business_goal: string;
+  selling_platform: string;
+  weekly_order_volume: string;
+  payment_method: string;
+  delivery_method: string;
+  bot_personality: string;
+  phone?: string;
+  business_address?: string;
+}
+
+export interface ShopRecord {
+  id: string;
+  owner_id: string;
+  shop_name: string;
+  owner_name: string | null;
+  phone?: string | null;
+  address?: string | null;
+  onboarding_completed: boolean;
+  onboarding_profile: OnboardingProfile | null;
+}
+
+/** Wizard form shape (Onboarding.tsx) */
+export interface OnboardingFormState {
+  business_name: string;
+  owner_name: string;
+  business_category: string;
+  mainly_sell: string;
+  main_customer: string;
+  age_group: string;
+  selling_platform: string;
+  marketing_method: string;
+  weekly_order_volume: string;
+  payment_method: string;
+  delivery_method: string;
+  business_goal: string;
+  bot_personality: string;
+  matter_most: string;
+  phone?: string;
+  business_address?: string;
 }
 
 export interface BusinessOnboarding {

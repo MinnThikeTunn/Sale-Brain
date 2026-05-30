@@ -90,7 +90,7 @@ export function processCustomerMessage(
     const opt = checkoutOption || (content === "payment_prepay" ? "prepay" : "cod");
     session.currentStep = "selecting_township";
     session.tempPayMethod = opt;
-    const towns = state.deliveryZones.map((z) => z.township);
+    const towns = state.deliveryZones.map((z) => z.township_name);
     pushBotMessage(session, `Great! You chose ${opt === "prepay" ? "Prepay" : "Cash on Delivery"}. Select your township:`, {
       interactiveOptions: towns,
     });
@@ -100,9 +100,9 @@ export function processCustomerMessage(
   if (township || content?.startsWith("township_")) {
     const townName = township || content!.replace("township_", "");
     const matchedZone = state.deliveryZones.find((z) =>
-      z.township.toLowerCase().includes(townName.toLowerCase())
+      z.township_name.toLowerCase().includes(townName.toLowerCase())
     );
-    const finalTownship = matchedZone?.township ?? "General Yangon";
+    const finalTownship = matchedZone?.township_name ?? "General Yangon";
     const deliveryCost = matchedZone?.rate ?? 3000;
 
     let cartTotal = 0;

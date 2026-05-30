@@ -9,43 +9,64 @@ import {
   Copy,
   Check,
   ExternalLink
+  Phone,
+  MapPin,
 } from "lucide-react";
 import { RadioGroup } from "./RadioGroup";
-import { supabase } from "../utils/supabase";
+import { SearchableSelect } from "./SearchableSelect";
 import { useAuth } from "../contexts/AuthContext";
-import { BusinessOnboarding } from "../types";
+import { saveShopOnboarding } from "../services/shopRecord";
+import { loadTownships } from "../data/townships";
+import type { OnboardingFormState } from "../types";
 import { generateShopId, buildShopPublicUrl } from "../utils/shopId";
 
 interface OnboardingProps {
   lang: "en" | "my";
-  onComplete: (profile: any, aiSummary: string) => void;
-  initialShopName?: string;
-  initialOwnerName?: string;
+  onComplete: (
+    profile: { shopName: string; ownerName: string; phone: string; businessAddress: string },
+    aiSummary: string
+  ) => void;
+  initialFormData?: OnboardingFormState;
+  isEditMode?: boolean;
+  onCancelEdit?: () => void;
   onLangChange?: (l: "en" | "my") => void;
 }
+
+const defaultForm = (): OnboardingFormState => ({
+  business_name: "",
+  owner_name: "",
+  business_category: "",
+  mainly_sell: "",
+  main_customer: "",
+  age_group: "",
+  selling_platform: "",
+  marketing_method: "",
+  weekly_order_volume: "",
+  payment_method: "",
+  delivery_method: "",
+  business_goal: "",
+  bot_personality: "Friendly",
+  matter_most: "Friendly",
+  phone: "",
+  business_address: "",
+});
 
 export function Onboarding({
   lang,
   onComplete,
-  initialShopName = "",
-  onLangChange
+  initialFormData,
+  isEditMode = false,
+  onCancelEdit,
+  onLangChange,
 }: OnboardingProps) {
   const { user } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [saving, setSaving] = useState(false);
-  const [generatedShopId, setGeneratedShopId] = useState<string>("");
-  const [copied, setCopied] = useState(false);
 
-  const [formData, setFormData] = useState({
-    business_name: initialShopName || "",
-    business_category: "",
-    selling_platform: "",
-    weekly_order_volume: "",
-    payment_method: "",
-    delivery_method: "",
-    business_goal: "",
-    bot_personality: "Friendly"
-  });
+  const [formData, setFormData] = useState<OnboardingFormState>(() => ({
+    ...defaultForm(),
+    ...initialFormData,
+  }));
 
   const categories = [
     { id: "Electronics & Gadgets", labelEn: "Electronics & Gadgets", labelMy: "လျှပ်စစ်နှင့် စမတ်ပစ္စည်းများ" },
@@ -103,9 +124,35 @@ export function Onboarding({
     { id: "Casual Myanmar Style", labelEn: "Casual Myanmar Style", labelMy: "မြန်မာဆန်ဆန် ပေါ့ပေါ့ပါးပါး" }
   ];
 
+  const mainCustomers = [
+    { id: "General consumers", labelEn: "General consumers", labelMy: "အထွေထွေ ဝယ်ယူသူများ" },
+    { id: "Young adults & students", labelEn: "Young adults & students", labelMy: "လူငယ်နှင့် ကျောင်းသားများ" },
+    { id: "Working professionals", labelEn: "Working professionals", labelMy: "အလုပ်လုပ်ကိုင်သူများ" },
+    { id: "Parents & families", labelEn: "Parents & families", labelMy: "မိသားစုနှင့် မိဘများ" },
+    { id: "Small business buyers", labelEn: "Small business buyers", labelMy: "အသေးစား လုပ်ငန်းဝယ်သူများ" },
+    { id: "Resellers & wholesalers", labelEn: "Resellers & wholesalers", labelMy: "ပြန်ရောင်းသူနှင့် လက်ကားရောင်းသူ" },
+  ];
+
+  const ageGroups = [
+    { id: "Under 18", labelEn: "Under 18", labelMy: "၁၈ နှစ်အောက်" },
+    { id: "18-24", labelEn: "18-24", labelMy: "၁၈-၂၄" },
+    { id: "25-34", labelEn: "25-34", labelMy: "၂၅-၃၄" },
+    { id: "35-44", labelEn: "35-44", labelMy: "၃၅-၄၄" },
+    { id: "45-54", labelEn: "45-54", labelMy: "၄၅-၅၄" },
+    { id: "55+", labelEn: "55+", labelMy: "၅၅ နှစ်အထက်" },
+    { id: "Mixed / all ages", labelEn: "Mixed / all ages", labelMy: "အသက်အရွယ်စုံ / အားလုံး" },
+  ];
+
   const isStepValid = () => {
     if (step === 1) {
-      return formData.business_name.trim() !== "" && formData.business_category !== "" && formData.selling_platform !== "";
+      return (
+        formData.business_name.trim() !== "" &&
+        formData.owner_name.trim() !== "" &&
+        formData.business_category !== "" &&
+        formData.main_customer !== "" &&
+        formData.age_group !== "" &&
+        formData.selling_platform !== ""
+      );
     }
     if (step === 2) {
       return formData.weekly_order_volume !== "" && formData.payment_method !== "" && formData.delivery_method !== "";
@@ -137,38 +184,37 @@ export function Onboarding({
 
     setGeneratedShopId(shopId);
 
-    const onboardingData: BusinessOnboarding = {
-      user_id: user.id,
-      shop_id: shopId,
-      business_name: formData.business_name,
-      business_category: formData.business_category,
-      selling_platform: formData.selling_platform,
-      weekly_order_volume: formData.weekly_order_volume,
-      payment_method: formData.payment_method,
-      delivery_method: formData.delivery_method,
-      business_goal: formData.business_goal,
-      bot_personality: formData.bot_personality,
-      onboarding_completed: true
-    };
-
     try {
-      const { error } = await supabase
-        .from('business_onboarding')
-        .upsert(onboardingData, { onConflict: 'user_id' });
+      await saveShopOnboarding(user.id, {
+        shopName: formData.business_name,
+        ownerName: formData.owner_name,
+        businessCategory: formData.business_category,
+        mainlySell: formData.mainly_sell || formData.business_category,
+        mainCustomer: formData.main_customer,
+        ageGroup: formData.age_group,
+        sellingPlatform: formData.selling_platform,
+        marketingMethod: formData.marketing_method || formData.selling_platform,
+        weeklyOrderVolume: formData.weekly_order_volume,
+        paymentMethod: formData.payment_method,
+        deliveryMethod: formData.delivery_method,
+        businessGoal: formData.business_goal,
+        botPersonality: formData.bot_personality,
+        matterMost: formData.matter_most || formData.bot_personality,
+        phone: formData.phone || "",
+        address: formData.business_address || "",
+      });
 
-      if (error) throw error;
-
-      // Sync RAG Knowledge Base
-      try {
-        await invokeApi("sync-knowledge");
-      } catch (syncErr) {
-        console.error("RAG Sync failed, but onboarding continued:", syncErr);
-      }
-
-      setTimeout(() => {
-        setStep(5);
-        setSaving(false);
-      }, 2000);
+      const aiSummary = `Business Profile Saved! Based on your goal of ${formData.business_goal} and ${formData.bot_personality} personality, Sales Brain AI is now optimized for your ${formData.business_category} store.`;
+      
+      onComplete(
+        {
+          shopName: formData.business_name,
+          ownerName: formData.owner_name,
+          phone: formData.phone?.trim() || "",
+          businessAddress: formData.business_address?.trim() || "",
+        },
+        aiSummary
+      );
 
     } catch (err: any) {
       console.error("Error saving onboarding data:", err);
@@ -226,7 +272,15 @@ export function Onboarding({
           <div className="flex items-center justify-between font-mono text-[9px] font-extrabold text-slate-400 uppercase tracking-widest bg-slate-100 px-4 py-2 rounded-xl border border-slate-200/50 w-full gap-2">
             <div className="flex items-center gap-1.5">
               <Compass size={12} className="text-indigo-500" />
-              <span>{lang === "my" ? "အရောင်းဆိုင် အေအိုင် လုပ်ငန်းလမ်းညွှန်" : "SALES BRAIN AI ONBOARDING"}</span>
+              <span>
+                {isEditMode
+                  ? lang === "my"
+                    ? "လုပ်ငန်းအချက်အလက် ပြင်ဆင်ခြင်း"
+                    : "EDIT BUSINESS PROFILE"
+                  : lang === "my"
+                    ? "အရောင်းဆိုင် အေအိုင် လုပ်ငန်းလမ်းညွှန်"
+                    : "SALES BRAIN AI ONBOARDING"}
+              </span>
             </div>
 
             <div className="flex items-center gap-1 bg-white border border-slate-200/60 p-0.5 rounded-lg">
@@ -297,11 +351,49 @@ export function Onboarding({
                   </div>
                 </div>
 
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono font-extrabold text-slate-400 uppercase block tracking-wider">
+                    {lang === "my" ? "ပိုင်ရှင်အမည်" : "Owner Name"}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.owner_name}
+                    onChange={(e) => setFormData({ ...formData, owner_name: e.target.value })}
+                    placeholder={lang === "my" ? "သင့်အမည် ထည့်ပါ" : "e.g., Minn Thike Tunn"}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 h-10.5"
+                  />
+                </div>
+
                 <RadioGroup
                   label={lang === "my" ? "လုပ်ငန်းအမျိုးအစား" : "Business Category"}
                   options={categories}
                   value={formData.business_category}
-                  onChange={(val) => setFormData({ ...formData, business_category: val })}
+                  onChange={(val) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      business_category: val,
+                      mainly_sell:
+                        !prev.mainly_sell || prev.mainly_sell === prev.business_category
+                          ? val
+                          : prev.mainly_sell,
+                    }))
+                  }
+                  lang={lang}
+                />
+
+                <RadioGroup
+                  label={lang === "my" ? "အဓိက ဝယ်ယူသူအမျိုးအစား" : "Main Customer Type"}
+                  options={mainCustomers}
+                  value={formData.main_customer}
+                  onChange={(val) => setFormData({ ...formData, main_customer: val })}
+                  lang={lang}
+                />
+
+                <RadioGroup
+                  label={lang === "my" ? "ဦးတသက်အရွယ်" : "Target Age Group"}
+                  options={ageGroups}
+                  value={formData.age_group}
+                  onChange={(val) => setFormData({ ...formData, age_group: val })}
                   lang={lang}
                 />
 
@@ -309,9 +401,44 @@ export function Onboarding({
                   label={lang === "my" ? "အရောင်းပလက်ဖောင်း" : "Selling Platform"}
                   options={platforms}
                   value={formData.selling_platform}
-                  onChange={(val) => setFormData({ ...formData, selling_platform: val })}
+                  onChange={(val) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      selling_platform: val,
+                      marketing_method:
+                        !prev.marketing_method || prev.marketing_method === prev.selling_platform
+                          ? val
+                          : prev.marketing_method,
+                    }))
+                  }
                   lang={lang}
                 />
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono font-extrabold text-slate-400 uppercase block tracking-wider">
+                    {lang === "my" ? "ဖုန်းနံပါတ်" : "Phone Number"}
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3.5 top-[13px] text-slate-400" size={14} />
+                    <input
+                      type="tel"
+                      value={formData.phone || ""}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder={lang === "my" ? "ဖုန်းနံပါတ်ထည့်ပါ" : "Enter phone number"}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 h-10.5"
+                    />
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <SearchableSelect
+                    label={lang === "my" ? "စားဝင်ဘက်အမျိုးအစား" : "Business Address (Township)"}
+                    options={loadTownships()}
+                    value={formData.business_address || ""}
+                    onChange={(val) => setFormData({ ...formData, business_address: val })}
+                    lang={lang}
+                  />
+                </div>
               </motion.div>
             )}
 
@@ -369,7 +496,16 @@ export function Onboarding({
                   label={lang === "my" ? "AI Bot စရိုက်လက္ခဏာ" : "AI Bot Personality"}
                   options={personalities}
                   value={formData.bot_personality}
-                  onChange={(val) => setFormData({ ...formData, bot_personality: val })}
+                  onChange={(val) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      bot_personality: val,
+                      matter_most:
+                        !prev.matter_most || prev.matter_most === prev.bot_personality
+                          ? val
+                          : prev.matter_most,
+                    }))
+                  }
                   lang={lang}
                 />
               </motion.div>
@@ -462,15 +598,26 @@ export function Onboarding({
 
           {step < 4 && (
             <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-6 shrink-0">
-              <button
-                type="button"
-                disabled={step === 1}
-                onClick={() => setStep((prev) => (prev - 1) as any)}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors disabled:opacity-40 flex items-center gap-1.5 cursor-pointer"
-              >
-                <ArrowLeft size={12} />
-                <span>{lang === "my" ? "နောက်သို့" : "Back"}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={step === 1}
+                  onClick={() => setStep((prev) => (prev - 1) as 1 | 2 | 3 | 4)}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors disabled:opacity-40 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ArrowLeft size={12} />
+                  <span>{lang === "my" ? "နောက်သို့" : "Back"}</span>
+                </button>
+                {isEditMode && onCancelEdit && (
+                  <button
+                    type="button"
+                    onClick={onCancelEdit}
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    {lang === "my" ? "မလုပ်တော့" : "Cancel"}
+                  </button>
+                )}
+              </div>
 
               <button
                 type="button"
@@ -479,7 +626,7 @@ export function Onboarding({
                   if (step === 3) {
                     handleFinalSubmit();
                   } else {
-                    setStep((prev) => (prev + 1) as any);
+                    setStep((prev) => (prev + 1) as 1 | 2 | 3 | 4);
                   }
                 }}
                 className={`px-6 py-2.5 rounded-xl text-xs font-semibold text-white transition-all transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer flex items-center gap-1.5 ${isStepValid()
@@ -487,7 +634,19 @@ export function Onboarding({
                     : "bg-slate-200 text-slate-400 cursor-not-allowed"
                   }`}
               >
-                <span>{step === 3 ? (lang === "my" ? "သိမ်းဆည်းမည်" : "Finish & Save") : (lang === "my" ? "ရှေ့သို့" : "Next")}</span>
+                <span>
+                  {step === 3
+                    ? isEditMode
+                      ? lang === "my"
+                        ? "ပြင်ဆင်မှု သိမ်းမည်"
+                        : "Save Changes"
+                      : lang === "my"
+                        ? "သိမ်းဆည်းမည်"
+                        : "Finish & Save"
+                    : lang === "my"
+                      ? "ရှေ့သို့"
+                      : "Next"}
+                </span>
                 <ArrowRight size={12} />
               </button>
             </div>
