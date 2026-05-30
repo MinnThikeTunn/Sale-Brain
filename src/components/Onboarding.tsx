@@ -180,9 +180,9 @@ export function Onboarding({
     // Reuse existing shop_id if available to prevent link changes
     let shopId = "";
     const { data: existing } = await supabase
-      .from('business_onboarding')
+      .from('shops')
       .select('shop_id')
-      .eq('user_id', user.id)
+      .eq('owner_id', user.id)
       .maybeSingle();
 
     if (existing?.shop_id) {
@@ -211,6 +211,7 @@ export function Onboarding({
         matterMost: formData.matter_most || formData.bot_personality,
         phone: formData.phone || "",
         address: formData.business_address || "",
+        shopId: shopId,
       });
 
       const aiSummary = `Business Profile Saved! Based on your goal of ${formData.business_goal} and ${formData.bot_personality} personality, Sales Brain AI is now optimized for your ${formData.business_category} store.`;

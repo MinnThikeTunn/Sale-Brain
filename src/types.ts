@@ -105,6 +105,7 @@ export interface OnboardingProfile {
 export interface ShopRecord {
   id: string;
   owner_id: string;
+  shop_id?: string;
   shop_name: string;
   owner_name: string | null;
   phone?: string | null;

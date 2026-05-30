@@ -402,6 +402,19 @@ export default function App() {
         if (shopRow) {
           setShopRecord(shopRow);
           data.config.onboardingCompleted = shopRow.onboarding_completed;
+          if (shopRow.shop_id) {
+            data.config.shopId = shopRow.shop_id;
+          } else {
+            // Fallback for legacy shopId during migration
+            const { data: legacy } = await supabase
+              .from('business_onboarding')
+              .select('shop_id')
+              .eq('user_id', user.id)
+              .maybeSingle();
+            if (legacy?.shop_id) {
+              data.config.shopId = legacy.shop_id;
+            }
+          }
           if (shopRow.shop_name) {
             data.config.shopName = shopRow.shop_name;
           }
