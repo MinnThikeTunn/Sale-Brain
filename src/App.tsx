@@ -131,8 +131,6 @@ const dict = {
     storeNameLabel: "Store Name:",
     smeOwnerNameLabel: "SME Owner Name:",
     contactPhoneLabel: "Contact Phone Number:",
-    customBotTokenLabel: "Custom Bot Token ID:",
-    setViaBotFather: "Set via @BotFather",
     telegramBotUsernameLabel: "Telegram Bot Username (@):",
     saveStoreSettingsBtn: "SAVE STORE SETTINGS AND ACTIVATED TELEGRAM VIRTUAL DEPLOY",
     liveSupportRoomHeader: "SME CRM LIVE SUPPORT ROOM",
@@ -256,8 +254,6 @@ const dict = {
     storeNameLabel: "ဆိုင်အမည် -",
     smeOwnerNameLabel: "ဆိုင်ရှင်အမည် -",
     contactPhoneLabel: "ဆက်သွယ်ရန် ဖုန်းနံပါတ် -",
-    customBotTokenLabel: "ရရှိထားသော တယ်လီဂရမ် Bot သော့ချက် (Token ID) -",
-    setViaBotFather: "တယ်လီဂရမ် @BotFather တွင် ရယူပါ",
     telegramBotUsernameLabel: "တယ်လီဂရမ် Bot ယူဇာနိမ်း (@) -",
     saveStoreSettingsBtn: "ဆိုင်အချက်အလက် စနစ် သိမ်းဆည်းပြီး တယ်လီဂရမ်နှင့် ချိတ်ဆက်မည်",
     liveSupportRoomHeader: "ဆိုင်ရှင် တိုက်ရိုက် ဝယ်သူစကားပြောခန်း (CRM)",
@@ -299,7 +295,10 @@ const dict = {
 export default function App() {
   const { user, loading: authLoading, signOut } = useAuth();
   const [lang, setLang] = useState<"en" | "my">("en");
-  const [showLandingPage, setShowLandingPage] = useState<boolean>(true);
+  const [showLandingPage, setShowLandingPage] = useState<boolean>(() => {
+    const stored = localStorage.getItem('sales_brain_visited');
+    return stored !== 'true';
+  });
   const [showSimulator, setShowSimulator] = useState<boolean>(false);
 
   // Helper dictionary access
@@ -438,15 +437,17 @@ export default function App() {
 
   // Run initial state loading and setup periodic fast poll to grab customer simulator inputs immediately!
   useEffect(() => {
+    if (user && !authLoading) {
+      localStorage.setItem('sales_brain_visited', 'true');
+    }
     if (!user) return;
     fetchState();
-
     const interval = setInterval(() => {
       fetchState(true);
     }, 4500);
 
     return () => clearInterval(interval);
-  }, [user?.id]);
+  }, [user?.id, authLoading]);
 
   // Ensure the bot-config form keeps a stable draft while typing
   useEffect(() => {
@@ -756,9 +757,9 @@ export default function App() {
     );
   }
 
-  if (showLandingPage) {
-    return <LandingPage onEnter={async () => {
-      await signOut();
+  if (showLandingPage && !user) {
+    return <LandingPage onEnter={() => {
+      localStorage.setItem('sales_brain_visited', 'true');
       setShowLandingPage(false);
     }} />;
   }
@@ -1899,36 +1900,19 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center">
-                        <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("customBotTokenLabel")}</label>
-                        <span className="text-[8px] font-mono text-indigo-500 select-none bg-indigo-50 px-1 rounded">{t("setViaBotFather")}</span>
-                      </div>
-                      <input
-                        type="text"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono text-[9px]"
-                        value={storeState.config.telegramBotToken}
-                        onChange={(e) => setStoreState({
-                          ...storeState,
-                          config: { ...storeState.config, telegramBotToken: e.target.value }
-                        })}
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("telegramBotUsernameLabel")}</label>
-                      <input
-                        type="text"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono"
-                        value={storeState.config.telegramBotUsername}
-                        onChange={(e) => setStoreState({
-                          ...storeState,
-                          config: { ...storeState.config, telegramBotUsername: e.target.value }
-                        })}
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-semibold text-slate-400 uppercase block">{t("telegramBotUsernameLabel")}</label>
+                    <input
+                      type="text"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono"
+                      value={storeState.config.telegramBotUsername}
+                      onChange={(e) => setStoreState({
+                        ...storeState,
+                        config: { ...storeState.config, telegramBotUsername: e.target.value }
+                      })}
+                    />
                   </div>
+
 
                   <button
                     type="submit"
